@@ -3,6 +3,10 @@
 Flashcards and learning games with spaced repetition. Static files, no build, no backend.
 Sync is Google Drive's private app folder, so there is nothing to host but this directory.
 
+**Live at [adervec.github.io/learning-pit](https://adervec.github.io/learning-pit/)** — open it
+on any phone, tablet or desktop and install it from the browser menu (or the *install on this
+device* link on the shelf).
+
 ## Run it
 
 ```sh
@@ -13,8 +17,9 @@ Open `http://localhost:8000`. `file://` mostly works too, but `modules/index.jso
 load and there's no service worker — import modules by hand instead.
 
 Deploy = copy the directory anywhere static (GitHub Pages, Netlify, a Raspberry Pi).
-Pushing to `main` on GitHub does it for you: `.github/workflows/pages.yml` runs the tests and
-publishes the repository as the site (enable Pages → Source: GitHub Actions once).
+This repository *is* the live site: GitHub Pages serves the `main` branch directly
+(Settings → Pages → Deploy from a branch), so pushing to `main` is deploying. Run the two
+checks below before you push — nothing runs them for you.
 
 On a tablet: open the URL in Chrome/Safari → *Add to Home Screen*. It then runs offline, keeps
 its own icon, and appears in the Android share sheet. (Offline is not a hope: with the server
