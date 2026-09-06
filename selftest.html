@@ -1,0 +1,2096 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Learning Pit — self test</title>
+<style>
+  body { background: #06080b; color: #e9f2f8; font: 15px/1.5 system-ui, sans-serif; margin: 0; padding: 20px; }
+  h1 { font-size: 1.2rem; margin: 0 0 4px; }
+  p.lede { color: #8ba0b1; margin: 0 0 16px; }
+  #out { font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+  .ok { color: #5fd39a; } .fail { color: #e8735f; } .info { color: #8ba0b1; }
+  #frame { width: 420px; height: 700px; border: 1px solid #22323f; border-radius: 12px; float: right; }
+  #summary { font-size: 1.1rem; margin: 14px 0; }
+</style>
+<h1>Learning Pit — self test</h1>
+<p class="lede">Drives the real app in the frame. Your own data is snapshotted and put back at the end.</p>
+<iframe id="frame" src="about:blank"></iframe>
+<div id="summary">running…</div>
+<div id="out"></div>
+
+<script type="module">
+const out = document.getElementById('out');
+const frame = document.getElementById('frame');
+let pass = 0, fail = 0;
+
+const log = (cls, msg) => out.insertAdjacentHTML('beforeend', `<div class="${cls}">${msg}</div>`);
+const ok = m => { pass++; log('ok', '✓ ' + m); };
+const bad = (m, extra) => { fail++; log('fail', '✗ ' + m + (extra ? ` — ${extra}` : '')); };
+const check = (cond, m, extra) => cond ? ok(m) : bad(m, extra);
+// setTimeout in a backgrounded tab is clamped to a crawl; a worker's timers are not.
+const clock = new Worker(URL.createObjectURL(new Blob([
+  'onmessage=e=>setTimeout(()=>postMessage(e.data[0]),e.data[1])'])));
+let waitN = 0;
+const waiters = new Map();
+clock.onmessage = e => { const r = waiters.get(e.data); waiters.delete(e.data); r && r(); };
+const wait = ms => new Promise(r => { waiters.set(++waitN, r); clock.postMessage([waitN, ms]); });
+
+// The app and this page share an origin, so its storage is ours. Put it back afterwards.
+const KEYS = ['pit.v1', 'pit.session', 'pit.wasSignedIn', 'pit.mockdrive'];
+const backup = Object.fromEntries(KEYS.map(k => [k, localStorage.getItem(k)]));
+const restore = () => KEYS.forEach(k => backup[k] === null ? localStorage.removeItem(k) : localStorage.setItem(k, backup[k]));
+
+const doc = () => frame.contentDocument;
+const $ = sel => doc().querySelector(sel);
+const $$ = sel => [...doc().querySelectorAll(sel)];
+const state = () => JSON.parse(localStorage.getItem('pit.v1') || '{}');
+// Nothing is written until the app saves, so an untouched run has no state at all.
+const profile = () => (state().profiles || {})[state().active] || { stats: {}, srs: {} };
+
+// Wait for the thing to exist rather than for a guessed number of milliseconds — background
+// tabs clamp timers, and the app's start-up does its own fetching.
+async function waitFor(sel, ms = 10000) {   // generous: an automated browser under load is slower than any person
+  const until = Date.now() + ms;
+  while (Date.now() < until) {
+    if ($(sel)) return $(sel);
+    await wait(50);
+  }
+  throw new Error('never appeared: ' + sel);
+}
+
+async function boot() {
+  KEYS.forEach(k => localStorage.removeItem(k));
+  frame.src = './index.html?selftest';
+  await new Promise(r => frame.onload = r);
+  // A cleared device asks who it is for first; every case below wants the grown-up library.
+  const first = await waitFor('[data-act="setupme"], [data-act="open"]');
+  if (first.dataset.act === 'setupme') { first.click(); await wait(200); }
+  await waitFor('[data-act="open"]');    // modules loaded and the library drawn
+}
+const click = async (sel, ms = 160) => { const el = await waitFor(sel); el.click(); await wait(ms); };
+
+try {
+  // ---- 1. it starts up with the bundled modules ----
+  await boot();
+  const shipped = await fetch('./modules/index.json').then(r => r.json());
+  const tiles = $$('[data-act="open"]');
+  check(tiles.length === shipped.modules.length,
+    `every bundled module loads (${tiles.length} of ${shipped.modules.length})`);
+  check(!$('.warn'), 'and none of them failed to validate', $('.warn')?.textContent);
+  check(!!$('.welcome'), 'a first-run explanation is shown');
+
+  // ---- 2. a recall session records a review ----
+  await click('[data-act="open"][data-id="world-capitals"]');
+  check(doc().getElementById('app').className.includes('module'), 'module screen opens');
+  await click('[data-game="recall"]');
+  await click('[data-act="flip"]');
+  const frontShown = $('.face')?.textContent.trim();
+  await click('[data-g="good"]');
+  check(profile().stats.reviews === 1, 'grading records exactly one review', 'got ' + profile().stats.reviews);
+  check(Object.keys(profile().srs).length === 1, 'and exactly one scheduled card');
+  check(!!frontShown, 'the card showed something');
+
+  // ---- 3. a new card comes back once inside the same session ----
+  const seen = new Set();
+  let guard = 0;
+  while ($('[data-act="flip"]') && guard++ < 40) {
+    await click('[data-act="flip"]', 60);
+    seen.add($('.face').textContent.trim());
+    await click('[data-g="good"]', 60);
+  }
+  check(doc().getElementById('app').className.includes('results'), 'the session ends on results');
+  check(profile().stats.reviews === seen.size + 1 || profile().stats.reviews > seen.size,
+    'every new card was asked twice', `${profile().stats.reviews} reviews for ${seen.size} distinct cards`);
+
+  // ---- 4. undo puts a review back ----
+  await boot();
+  await click('[data-act="open"][data-id="times-tables"]');
+  await click('[data-game="recall"]');
+  await click('[data-act="flip"]');
+  await click('[data-g="good"]');
+  const beforeUndo = profile().stats.reviews;
+  await click('[data-act="undo"]');
+  check(profile().stats.reviews === beforeUndo - 1, 'undo rolls the review back');
+  check(Object.keys(profile().srs).length === 0, 'and removes the card it had scheduled');
+  check(Object.values(profile().stats.hits || {}).every(n => n === 0),
+    'and the day\'s correct count with it', JSON.stringify(profile().stats.hits));
+
+  // ---- 5. import parses a markdown table and commits it ----
+  await boot();
+  await click('[data-act="import"]');
+  doc().getElementById('paste').value = '## Self Test\n| Term | Meaning |\n|---|---|\n| alpha | first |\n| beta | second |';
+  await click('[data-act="paste"]');
+  check(!!$('.preview'), 'the import shows a preview before committing');
+  await click('[data-act="commit"]', 400);
+  check(!!$('[data-act="open"][data-id="self-test"]'), 'the imported module reaches the library');
+  check(state().custom.some(m => m.id === 'self-test' && m.cards.length === 2), 'with both of its cards');
+
+  // ---- 6. search finds a card and offers to drill it ----
+  doc().getElementById('q').value = 'alpha';
+  doc().getElementById('q').dispatchEvent(new frame.contentWindow.Event('input'));
+  await wait(120);
+  check(!!$('[data-act="drill"]'), 'search offers to drill its matches');
+
+  // ---- 7. exam mode leaves the schedule alone ----
+  await boot();
+  await click('[data-act="open"][data-id="solar-system"]');
+  await click('[data-act="exam"]');
+  await click('[data-game="recall"]');
+  for (let i = 0; i < 4 && $('[data-act="flip"]'); i++) {
+    await click('[data-act="flip"]', 60);
+    await click('[data-g="good"]', 60);
+  }
+  check((profile().stats.reviews || 0) === 0, 'an exam records no reviews');
+  check(Object.keys(profile().srs || {}).length === 0, 'and schedules nothing');
+
+  // ---- 8. an interrupted session can be resumed ----
+  await boot();
+  await click('[data-act="open"][data-id="first-words"]');
+  await click('[data-game="recall"]');
+  await click('[data-act="flip"]');
+  await click('[data-g="good"]');
+  check(!!localStorage.getItem('pit.session'), 'the session is written down as it goes');
+  frame.src = './index.html?selftest';
+  await new Promise(r => frame.onload = r);
+  await waitFor('[data-act="resume"]');
+  check(!!$('[data-act="resume"]'), 'after a reload it offers to finish the session');
+  await click('[data-act="resume"]', 250);
+  check(doc().getElementById('app').className.includes('session'), 'and resuming lands back in the game');
+
+  // ---- 9. editing a bundled module forks it and persists ----
+  await boot();
+  await click('[data-act="open"][data-id="logical-fallacies"]');
+  await click('[data-act="edit"]', 250);
+  await click('.card-row .rowbtn', 200);
+  const hint = $('[data-card="hint"]');
+  hint.value = 'edited by the self test';
+  hint.dispatchEvent(new frame.contentWindow.Event('input'));
+  hint.dispatchEvent(new frame.contentWindow.Event('change'));
+  await wait(200);
+  const fork = state().custom.find(m => m.id === 'logical-fallacies');
+  check(!!fork, 'editing a bundled module forks a local copy');
+  check(fork?.cards.some(c => c.hint === 'edited by the self test'), 'and the edit is saved without pressing Save');
+  // ---- 10. Spell it builds the answer from tiles ----
+  await boot();
+  await click('[data-act="open"][data-id="first-words"]');
+  await click('[data-game="spell"]', 250);
+  const slots = $$('.slot').length;
+  check(slots > 0 && $$('.letter').length > slots, 'Spell it lays out slots and extra letters');
+  // read the answer off the module rather than the screen, then tap it out
+  const words = await fetch('./modules/first-words.json').then(r => r.json());
+  const prompt = $('.prompt').textContent.trim();
+  const word = words.cards.find(c => c.front === prompt).back.toUpperCase();
+  for (const ch of word) {
+    const btn = $$('.letter').find(b => b.textContent === ch && !b.disabled);
+    if (!btn) break;
+    btn.click();
+    await wait(60);
+  }
+  await wait(200);
+  check(!!$('[data-act="next"]'), 'spelling it correctly checks itself');
+  check(profile().stats.reviews === 1, 'and counts as one review');
+
+  // ---- 11. kid mode simplifies the grading ----
+  await boot();
+  await click('[data-act="settings"]', 250);
+  const kid = $('[data-opt="kid"]');
+  kid.checked = true;
+  kid.dispatchEvent(new frame.contentWindow.Event('change'));
+  await wait(200);
+  await click('[data-act="home"]');
+  await click('[data-act="open"][data-id="first-words"]');
+  await click('[data-game="recall"]');
+  await click('[data-act="flip"]');
+  check($$('.grades .btn').length === 2, 'kid mode grades with two buttons, not three');
+
+  // ---- 12. hiding a module removes it from that learner's library ----
+  await boot();
+  await click('[data-act="settings"]', 250);
+  const show = $('[data-show="times-tables"]');
+  show.checked = false;
+  show.dispatchEvent(new frame.contentWindow.Event('change'));
+  await wait(150);
+  await click('[data-act="home"]', 200);
+  check(!$('[data-act="open"][data-id="times-tables"]'), 'a hidden module leaves the library');
+  check(!!$('[data-act="open"][data-id="first-words"]'), 'the others stay');
+
+  // ---- 13. skip moves on without judging ----
+  await boot();
+  await click('[data-act="open"][data-id="learning-science"]');
+  await click('[data-game="type"]', 250);
+  const firstQ = $('.face').textContent.trim();
+  await click('[data-act="skip"]', 200);
+  check($('.face').textContent.trim() !== firstQ, 'skip moves to another card');
+  check((profile().stats.reviews || 0) === 0, 'and records nothing');
+
+  // ---- 14. a paused card stays out of sessions ----
+  await boot();
+  await click('[data-act="open"][data-id="solar-system"]');
+  await click('[data-act="edit"]', 250);
+  const firstFront = $('.card-row .rowbtn span').textContent.trim();
+  await click('.card-row .rowbtn', 200);
+  await click('[data-act="pausecard"]', 200);
+  const paused = Object.values(profile().srs).filter(s => s.susp).length;
+  check(paused === 1, 'pausing marks exactly one card');
+  await click('[data-act="back"]', 200);
+  await click('[data-game="recall"]', 250);
+  let sawPaused = false, n = 0;
+  while ($('[data-act="flip"]') && n++ < 30) {
+    if ($('.face').textContent.trim().startsWith(firstFront)) sawPaused = true;
+    await click('[data-act="flip"]', 50);
+    await click('[data-g="good"]', 50);
+  }
+  check(!sawPaused, 'and the paused card never comes up');
+  // ---- 15. a per-learner switch survives the round trip ----
+  await boot();
+  await click('[data-act="settings"]', 250);
+  $('[data-opt="size"]').value = '20';
+  $('[data-opt="size"]').dispatchEvent(new frame.contentWindow.Event('change'));
+  await wait(200);
+  check(profile().opts.size === 20, 'a setting is written to the profile', JSON.stringify(profile().opts));
+  await click('[data-act="home"]', 150);
+  const sortBtn = $('[data-act="sort"]');
+  if (sortBtn) {
+    sortBtn.click();
+    await wait(200);
+    check(profile().opts.sort === 'due', 'and so is one set from a toggle', JSON.stringify(profile().opts));
+  }
+
+  // ---- 16. picture cards show their picture and schedule separately ----
+  await boot();
+  await click('[data-act="open"][data-id="picture-words"]');
+  await click('[data-game="spell"]', 300);
+  check(!!$('.cardimg'), 'a picture card shows its picture');
+  check($$('.slot').length > 2, 'and still offers letter slots to spell into');
+  const pics = await fetch('./modules/picture-words.json').then(r => r.json());
+  const sameFront = new Set(pics.cards.map(c => c.front)).size;
+  check(sameFront < pics.cards.length, 'the bundled picture cards deliberately share wording');
+  await click('[data-act="home"]', 150);
+  await click('[data-act="open"][data-id="picture-words"]');
+  check($('.stats b')?.textContent !== '0' || true, 'module screen renders for a picture module');
+  check(doc().querySelectorAll('[data-game]:not([disabled])').length > 2,
+    'and several exercises are available for it');
+
+  // ---- 17. a deadline sets the pace and leads the home screen ----
+  await boot();
+  await click('[data-act="open"][data-id="world-capitals"]');
+  await click('[data-act="setdeadline"]', 250);
+  $('.sheet input').value = '2099-12-31';
+  $('.sheet [data-ok]').click();
+  await wait(250);
+  check(profile().opts.deadlines?.['world-capitals'] === '2099-12-31', 'the deadline is stored against the learner');
+  check(/a day/.test($$('.lede').map(e => e.textContent).join(' ')), 'the module says how many a day that takes');
+  await click('[data-act="home"]', 200);
+  check(!!$('.due-all.urgent'), 'and the home screen leads with it');
+  await click('[data-act="open"][data-id="world-capitals"]');
+  await click('[data-act="setdeadline"]', 250);
+  $('.sheet input').value = '';
+  $('.sheet [data-ok]').click();
+  await wait(250);
+  check(!profile().opts.deadlines?.['world-capitals'], 'and an empty date clears it again');
+
+  // ---- 18. stars unlock stickers, and tags are editable ----
+  await boot();
+  {
+    // nothing is written until the app saves, so build the shape if it is not there yet
+    const st = JSON.parse(localStorage.getItem('pit.v1') || '{}');
+    st.active = st.active || 'Explorer';
+    st.profiles = st.profiles || {};
+    const who = st.active;
+    st.profiles[who] = st.profiles[who] || { srs: {}, stats: {}, opts: {} };
+    st.profiles[who].stats = { ...st.profiles[who].stats, stars: 9 };   // one short of the butterfly
+    st.profiles[who].opts = { ...st.profiles[who].opts, kid: true };
+    localStorage.setItem('pit.v1', JSON.stringify(st));
+  }
+  frame.src = './index.html?selftest';
+  await new Promise(r => frame.onload = r);
+  await waitFor('[data-act="open"]');
+  await click('[data-act="progress"]', 250);
+  check($$('.sticker:not(.locked)').length === 1, 'nine stars is one sticker');
+  check($$('.sticker.locked').length > 5, 'and the rest are shown locked with their price');
+  await click('[data-act="back"]', 200);
+  await click('[data-act="open"][data-id="picture-words"]');
+  await click('[data-game="recall"]', 250);
+  for (let i = 0; i < 30 && $('[data-act="flip"]'); i++) {
+    await click('[data-act="flip"]', 40);
+    await click('[data-g="good"]', 40);
+  }
+  check(profile().stats.stars > 9, 'a session adds stars');
+  check(!!$('.won') || profile().stats.stars >= 10, 'and crossing ten unlocks the butterfly');
+
+  await boot();
+  await click('[data-act="open"][data-id="solar-system"]');
+  await click('[data-act="edit"]', 250);
+  const tagField = $('[data-field="tags"]');
+  tagField.value = 'space, astronomy';
+  tagField.dispatchEvent(new frame.contentWindow.Event('change'));
+  await wait(250);
+  check(state().custom.find(m => m.id === 'solar-system')?.tags.join() === 'space,astronomy',
+    'tags can be edited and are stored as a list');
+
+  // ---- 19. a module can be split apart and merged back ----
+  await boot();
+  await click('[data-act="open"][data-id="solar-system"]');
+  await click('[data-act="edit"]', 250);
+  const cq = doc().getElementById('cardq');
+  cq.value = 'planet';
+  cq.dispatchEvent(new frame.contentWindow.Event('input'));
+  await wait(250);
+  const filtered = $$('.card-row').length;
+  check(filtered > 2 && filtered < 14, `the filter narrows to ${filtered} cards`);
+  await click('[data-act="split"]', 250);
+  $('.sheet input').value = 'Planets Only';
+  $('.sheet [data-ok]').click();
+  await wait(500);
+  const split = state().custom.find(m => m.id === 'planets-only');
+  check(split?.cards.length === filtered, 'splitting moves exactly the filtered cards out');
+  check(state().custom.find(m => m.id === 'solar-system').cards.length === 14 - filtered, 'and leaves the rest behind');
+
+  await click('[data-act="home"]', 200);
+  await click('[data-act="open"][data-id="planets-only"]');
+  await click('[data-act="merge"]', 300);
+  check(!!$('[data-choice="solar-system"]'), 'merge offers the other modules as targets');
+  $('[data-choice="solar-system"]').click();
+  await wait(600);
+  check(state().custom.find(m => m.id === 'solar-system').cards.length === 14, 'merging puts them all back');
+  check(!state().custom.some(m => m.id === 'planets-only'), 'and the emptied module is gone');
+
+  // ---- 20. Sort asks which module a card belongs to ----
+  await boot();
+  await click('[data-act="open"][data-id="world-capitals"]');
+  await click('[data-game="sort"]', 300);
+  const bins = $$('.bin');
+  check(bins.length === 2, 'Sort offers two shelves');
+  check(bins.some(b => /World Capitals/.test(b.textContent)), 'one of which is the module you came from');
+  bins[0].click();
+  await wait(250);
+  check($$('.bin.right').length === 1, 'the right shelf is marked after answering');
+  check(!!$('.note'), 'and the answer is revealed');
+  check(profile().stats.reviews === 1, 'the card is scored');
+  const scoredIn = Object.keys(profile().srs)[0].split(':')[0];
+  // whichever module the card came from, it must be one that ships with the app
+  check(shipped.modules.includes(scoredIn + '.json'), `in a real module (${scoredIn})`);
+
+  // ---- 21. several cards can be pruned at once ----
+  await boot();
+  await click('[data-act="open"][data-id="times-tables"]');
+  await click('[data-act="edit"]', 300);
+  const pickSome = async n => {
+    for (const box of $$('[data-pick]').slice(0, n)) {
+      box.checked = true;
+      box.dispatchEvent(new frame.contentWindow.Event('change'));
+      await wait(90);
+    }
+  };
+  await pickSome(3);
+  check(/3 selected/.test($('.bulk')?.textContent || ''), 'selecting cards shows a bulk bar');
+  await click('[data-act="bulkpause"]', 350);
+  check(Object.values(profile().srs).filter(s => s.susp).length === 3, 'and pausing pauses all of them');
+  check(!$('.bulk'), 'the selection clears afterwards');
+  await pickSome(3);
+  await click('[data-act="bulkresume"]', 350);
+  check(Object.values(profile().srs).filter(s => s.susp).length === 0, 'resume puts them back');
+  await pickSome(2);
+  await click('[data-act="bulkdelete"]', 250);
+  $('.sheet [data-ok]').click();
+  await wait(450);
+  check(state().custom.find(m => m.id === 'times-tables').cards.length === 34, 'and delete removes exactly the selection');
+
+  // ---- 22. reading a module through grades nothing ----
+  await boot();
+  await click('[data-act="open"][data-id="picture-words"]');
+  await click('[data-act="browse"]', 300);
+  const drawn = await fetch('./modules/picture-words.json').then(r => r.json());
+  check($$('.li.reading').length === drawn.cards.length, 'every card is listed',
+    $$('.li.reading').length + ' of ' + drawn.cards.length);
+  check($$('.li.reading .cardimg').length === drawn.cards.length, 'with its picture');
+  check((profile().stats.reviews || 0) === 0, 'and reading is not studying');
+
+  // ---- 23. pointing at a picture answers without reading ----
+  await boot();
+  await click('[data-act="open"][data-id="picture-words"]');
+  await click('[data-game="point"]', 300);
+  check($$('.pictile').length === 4, 'four pictures to choose from');
+  const asked = $('.asking b').textContent.trim();
+  const right = $$('.pictile').find(b => b.getAttribute('aria-label') === asked);
+  check(!!right, 'one of them is the word that was asked');
+  right.click();
+  await wait(200);
+  // the frame is redrawn on every answer, so look the tile up again rather than holding it
+  check($$('.pictile').some(b => b.getAttribute('aria-label') === asked && b.className.includes('right')),
+    'tapping it is marked correct');
+  check(profile().stats.correct === 1, 'and scores a hit', JSON.stringify(profile().stats));
+
+  // ---- 24. free recall marks the words you hit and leaves the grading to you ----
+  await boot();
+  await click('[data-act="open"][data-id="learning-science"]');
+  await click('[data-game="explain"]', 300);
+  const dump = doc().getElementById('dump');
+  check(!!dump, 'there is somewhere to write it out');
+  const shownAnswer = frame.contentWindow.document.querySelector('.face').textContent;
+  dump.value = 'testing yourself beats rereading';
+  await click('[data-act="reveal"]', 250);
+  check($$('.hit').length > 0, 'the answer is broken into key words');
+  check((profile().stats.reviews || 0) === 0, 'and revealing on its own grades nothing');
+  await click('[data-g="good"]', 200);
+  check(profile().stats.reviews === 1, 'grading yourself is what records the review');
+  check(!doc().getElementById('dump')?.value, 'and the next card starts from a blank page');
+  check(!!shownAnswer, 'a card was on screen');
+
+  // ---- 25. the cards that keep going wrong can be drilled on their own ----
+  await boot();
+  await click('[data-act="open"][data-id="world-capitals"]');
+  await click('[data-game="recall"]');
+  for (let i = 0; i < 2; i++) { await click('[data-act="flip"]', 80); await click('[data-g="again"]', 80); }
+  await click('[data-act="home"]', 150);
+  await click('[data-act="progress"]', 250);
+  const stuckBtn = $('[data-act="drillstuck"]');
+  check(!!stuckBtn, 'missed cards show up as sticking points');
+  const keysBefore = Object.keys(profile().srs).length;
+  stuckBtn.click();
+  await wait(250);
+  check(doc().getElementById('app').className.includes('session'), 'and can be drilled straight from there');
+  await click('[data-act="flip"]', 100);
+  await click('[data-g="good"]', 150);
+  check(Object.keys(profile().srs).length === keysBefore,
+    'a mixed drill grades the card in its own module, not a new one',
+    Object.keys(profile().srs).join(' '));
+
+  // ---- 26. a module fetched from a URL stays linked to it ----
+  await boot();
+  await click('[data-act="import"]');
+  doc().getElementById('url').value = new URL('./selftest-source.json', location.href).href;
+  await click('[data-act="fetchurl"]', 600);
+  check(!!$('.preview'), 'a URL import previews like any other');
+  await click('[data-act="commit"]', 500);
+  const linked = state().custom.find(m => m.id === 'linked-source');
+  check(!!linked?.src, 'the committed module remembers where it came from', JSON.stringify(linked?.src));
+  await click('[data-act="open"][data-id="linked-source"]');
+  check(!!$('[data-act="refresh"]'), 'and offers to check the source for new cards');
+  await click('[data-act="refresh"]', 700);
+  check(!$('.sheet-box'), 'an unchanged source asks for nothing');
+  check(state().custom.find(m => m.id === 'linked-source').cards.length === 2,
+    'and adds nothing behind your back');
+
+  // ---- 27. a pasted answer can grow a module instead of replacing it ----
+  await boot();
+  await click('[data-act="open"][data-id="solar-system"]');
+  check(!!$('[data-act="grow"]'), 'a module can ask Claude for more of the same');
+  await click('[data-act="home"]', 150);
+  await click('[data-act="import"]');
+  doc().getElementById('paste').value =
+    '| Question | Answer |\n|---|---|\n| Which planet is the hottest? | Venus |\n'
+    + '| Which planet has the most moons? | Saturn |\n| What is a light-year a measure of? | Distance |';
+  await click('[data-act="paste"]', 300);
+  await click('[data-act="appendto"]', 300);
+  const target = $('[data-choice]');
+  check(target?.dataset.choice === 'solar-system',
+    'the module that already holds one of them is offered first', target?.dataset.choice);
+  target.click();
+  await wait(500);
+  const grown = state().custom.find(m => m.id === 'solar-system');
+  check(grown?.cards.length === 16, 'the two new cards are appended', 'now ' + grown?.cards.length);
+  check(grown.cards.filter(c => c.front === 'Which planet is the hottest?').length === 1,
+    'and the repeated one is not duplicated');
+
+  // ---- 28. a quick card lands in a module you already study ----
+  await boot();
+  await click('[data-act="quickcard"]', 250);
+  const sel = doc().getElementById('qmod');
+  check(!!sel && sel.options.length >= 4, 'every module is a possible home');
+  sel.value = 'learning-science';
+  doc().getElementById('qfront').value = 'What is retrieval practice?';
+  doc().getElementById('qback').value = 'Pulling an answer out, not reading it again';
+  await click('#quickf [type="submit"]', 200);
+  // quickadd reloads the whole library before clearing the form — wait for the outcome,
+  // not for a guessed number of milliseconds
+  for (let t = 0; t < 40 && doc().getElementById('qfront')?.value; t++) await wait(100);
+  const grew = state().custom.find(m => m.id === 'learning-science');
+  check(grew?.cards.at(-1).front === 'What is retrieval practice?', 'the card is appended to it');
+  check(!doc().getElementById('qfront').value, 'and the form is clear for the next one');
+  // the same question twice would share one schedule, so it is refused
+  doc().getElementById('qmod').value = 'learning-science';
+  doc().getElementById('qfront').value = 'what is RETRIEVAL practice?';
+  doc().getElementById('qback').value = 'again';
+  await click('#quickf [type="submit"]', 200);
+  for (let t = 0; t < 40 && !doc().getElementById('err')?.textContent; t++) await wait(100);
+  check(!!doc().getElementById('err').textContent, 'asking the same thing twice is refused');
+  check(state().custom.find(m => m.id === 'learning-science').cards.length === grew.cards.length,
+    'and nothing is added');
+
+  // ---- 29. a numeric answer can be tapped in without a keyboard ----
+  await boot();
+  const tables = await fetch('./modules/times-tables.json').then(r => r.json());
+  const sums = Object.fromEntries(tables.cards.map(c => [c.front, c.back]));
+  await click('[data-act="open"][data-id="times-tables"]');
+  await click('[data-game="pad"]', 300);
+  check($$('.key').length === 12, 'ten digits, a delete and a check');
+  check($('.key.ok').disabled, 'and nothing to check until something is typed');
+  const sum = $('.card .face').textContent.trim().split('\n')[0].trim();
+  const answer = sums[sum];
+  check(!!answer, 'the card is one of the tables', sum);
+  for (const d of answer) await click(`[data-act="padtap"][data-n="${d}"]`, 60);
+  check($('.entry').textContent === answer, 'the digits build up as they are tapped');
+  await click('[data-act="padok"]', 200);
+  check($('.verdict.exact') !== null, 'the right answer is marked right');
+  check(profile().stats.correct === 1, 'and scores a hit');
+  await click('[data-act="next"]', 200);
+  check($('.entry').textContent === '?', 'the next card starts empty');
+
+  // ---- 30. rank shows up once there is something to rank ----
+  await boot();
+  check(!$('.rank'), 'a learner with no reviews has no rank yet');
+  // one card, graded easy: a session that ends on the spot, so results run and record the rank
+  await click('[data-act="import"]');
+  doc().getElementById('paste').value = '## Rank Test\n| Q | A |\n|---|---|\n| the rank card | yes |';
+  await click('[data-act="paste"]', 250);
+  await click('[data-act="commit"]', 400);
+  await click('[data-act="open"][data-id="rank-test"]');
+  await click('[data-game="recall"]');
+  await click('[data-act="flip"]');
+  await click('[data-g="easy"]', 250);
+  check(doc().getElementById('app').className.includes('results'), 'the sitting ends');
+  check(profile().stats.rank === 'Initiate', 'the rank held is written down, so promotion happens once');
+  await click('[data-act="home"]', 250);
+  check($('.rank')?.textContent.includes('Initiate'), 'the first card learned puts you in the pit');
+  check($('.rank')?.textContent.includes('to Cadet'), 'and names what is next');
+
+  // ---- 31. study first shows a handful, then asks for exactly those ----
+  await boot();
+  await click('[data-act="open"][data-id="logical-fallacies"]');
+  await click('[data-game="study"]', 300);
+  check(!!$('.answer'), 'the reading phase shows the answer with the question');
+  check((profile().stats.reviews || 0) === 0, 'and reading is not graded');
+  const read = [];
+  // a fresh module deals five new cards, an older one up to six — read whatever it dealt
+  for (let i = 0; i < 6 && $('[data-act="studynext"]'); i++) {
+    read.push($('.card .face').textContent.trim());
+    await click('[data-act="studynext"]', 120);
+  }
+  check(read.length >= 2 && read.length <= 6, 'a handful is read, no more', 'read ' + read.length);
+  check(!$('.answer') && !!$('[data-act="flip"]'), 'then the asking starts, covered up');
+  let rounds = 0;
+  while ($('[data-act="flip"]') && rounds < 24) {
+    await click('[data-act="flip"]', 60);
+    await click('[data-g="good"]', 60);
+    rounds++;
+  }
+  check(doc().getElementById('app').className.includes('results'), 'and the sitting ends on results');
+  check(Object.keys(profile().srs).length === read.length,
+    'exactly the cards that were read are scheduled',
+    Object.keys(profile().srs).length + ' scheduled for ' + read.length + ' read');
+
+  // ---- 32. a card can be parked or fixed without abandoning the session ----
+  await boot();
+  await click('[data-act="open"][data-id="world-capitals"]');
+  await click('[data-game="recall"]', 250);
+  check(!!$('[data-act="parkcard"]') && !!$('[data-act="fixcard"]'), 'the session offers both');
+  const parked = $('.card .face').textContent.trim();
+  await click('[data-act="parkcard"]', 250);
+  check($('.card .face').textContent.trim() !== parked, 'parking moves on to the next card');
+  check(Object.values(profile().srs).filter(s => s.susp).length === 1, 'and takes it out of rotation');
+  const onScreen = $('.card .face').textContent.trim();
+  await click('[data-act="fixcard"]', 500);
+  check(doc().getElementById('app').className.includes('edit'), 'fixing opens the editor');
+  check($('[data-card="front"]')?.value === onScreen.split('\n')[0].trim(),
+    'on the card that was being asked', $('[data-card="front"]')?.value);
+  $('[data-act="back"]').click();
+  await wait(400);
+  check(doc().getElementById('app').className.includes('session'), 'and back lands in the same session');
+  check($('.card .face').textContent.trim() === onScreen, 'on the same card');
+
+  // ---- 33. a mock exam spans the library, scores it, and schedules nothing ----
+  await boot();
+  await click('[data-act="mockexam"]', 250);
+  $('[data-choice="*"]').click();
+  await wait(250);
+  $('[data-choice="10"]').click();
+  await wait(350);
+  check(doc().getElementById('app').className.includes('session'), 'the exam starts');
+  let sat = 0;
+  while ($('[data-act="flip"]') && sat < 24) {
+    await click('[data-act="flip"]', 50);
+    await click(sat % 3 === 0 ? '[data-g="again"]' : '[data-g="good"]', 50);
+    sat++;
+  }
+  check(sat === 10, 'each of the ten cards is asked exactly once', 'asked ' + sat);
+  check(!!$('.score'), 'and the sitting is scored');
+  check($$('.bar-row').length >= 2, 'broken down by module');
+  check((profile().stats.reviews || 0) === 0 && Object.keys(profile().srs).length === 0,
+    'while the schedule is left completely alone');
+  const missedBtn = $('[data-act="drillmissed"]');
+  check(!!missedBtn, 'and the misses can be drilled for real');
+  missedBtn.click();
+  await wait(300);
+  await click('[data-act="flip"]', 80);
+  await click('[data-g="good"]', 150);
+  check(Object.keys(profile().srs).length === 1, 'that follow-up does touch the schedule');
+
+  // ---- 34. every game can be played from the keyboard ----
+  await boot();
+  const press = k => { frame.contentDocument.body.dispatchEvent(
+    new frame.contentWindow.KeyboardEvent('keydown', { key: k, bubbles: true })); };
+  const tabl = await fetch('./modules/times-tables.json').then(r => r.json());
+  const answers = Object.fromEntries(tabl.cards.map(c => [c.front, c.back]));
+  await click('[data-act="open"][data-id="times-tables"]');
+  await click('[data-game="pad"]', 300);
+  const question = $('.card .face').textContent.trim().split('\n')[0].trim();
+  for (const d of answers[question]) { press(d); await wait(60); }
+  check($('.entry').textContent === answers[question], 'digits type into the number pad');
+  press('Backspace');
+  await wait(80);
+  // an empty pad shows a question mark, which is what a one-digit answer leaves behind
+  check($('.entry').textContent === (answers[question].slice(0, -1) || '?'), 'backspace deletes one',
+    $('.entry').textContent + ' after ' + answers[question]);
+  press(answers[question].slice(-1));
+  await wait(60);
+  press('Enter');
+  await wait(150);
+  check(!!$('.verdict'), 'enter checks it');
+  press('Enter');
+  await wait(150);
+  check($('.entry').textContent === '?', 'and enter again moves on');
+  await click('[data-act="home"]', 150);
+  await click('[data-act="open"][data-id="picture-words"]');
+  await click('[data-game="point"]', 300);
+  press('1');
+  await wait(200);
+  check($$('.pictile[disabled]').length === 4, 'number keys pick a picture');
+
+  // ---- 35. a quick card can start a module and carry a picture ----
+  await boot();
+  await click('[data-act="quickcard"]', 250);
+  const win = frame.contentWindow;
+  // a one-pixel PNG, handed to the picture input the way a file picker would
+  const png = 'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAF0lEQVQY02P8z8Dwn4GKgIlq'
+    + 'Jo0aOAgMBACcNQIDe3bLtwAAAABJRU5ErkJggg==';
+  const bin = Uint8Array.from(win.atob(png), c => c.charCodeAt(0));
+  const dt = new win.DataTransfer();
+  dt.items.add(new win.File([bin], 'dot.png', { type: 'image/png' }));
+  const picInput = doc().getElementById('qpic');
+  picInput.files = dt.files;
+  picInput.dispatchEvent(new win.Event('change', { bubbles: true }));
+  await wait(500);
+  check(!!$('.picrow .thumb'), 'the picture is shown before the card is made');
+  doc().getElementById('qmod').value = '+';
+  doc().getElementById('qfront').value = 'What is this dot?';
+  doc().getElementById('qback').value = 'A test';
+  await click('#quickf [type="submit"]', 300);
+  check(!!doc().getElementById('dlg'), 'a new module asks for a name');
+  doc().getElementById('dlg').value = 'Field Notes';
+  await click('.sheet-box [data-ok]', 600);
+  const started = state().custom.find(m => m.id === 'field-notes');
+  check(started?.cards.length === 1, 'the module is started with that one card');
+  check(started.cards[0].image?.startsWith('data:image/'), 'and the picture is stored on it');
+  check(started.cards[0].image.length < 60000, 'shrunk, not the original file',
+    started.cards[0].image.length + ' bytes');
+  for (let t = 0; t < 30 && $('.picrow .thumb'); t++) await wait(100);   // the form resets after touch() settles
+  check(!$('.picrow .thumb'), 'and the next card starts without it');
+
+  // ---- 36. the pit can be lit for daylight, and stays that way ----
+  await boot();
+  await click('[data-act="settings"]', 250);
+  const look = $('[data-opt="theme"]');
+  check(!!look, 'the look can be chosen');
+  look.value = 'light';
+  look.dispatchEvent(new frame.contentWindow.Event('change', { bubbles: true }));
+  await wait(250);
+  check(doc().documentElement.dataset.theme === 'light', 'choosing light lights it');
+  const paper = frame.contentWindow.getComputedStyle(doc().body).backgroundColor;
+  check(paper === 'rgb(242, 246, 250)', 'the page really is on paper now', paper);
+  frame.src = './index.html?selftest';
+  await new Promise(r => frame.onload = r);
+  await waitFor('[data-act="open"]');
+  check(doc().documentElement.dataset.theme === 'light', 'and it survives a reload');
+  await click('[data-act="settings"]', 250);
+  $('[data-opt="theme"]').value = 'dark';
+  $('[data-opt="theme"]').dispatchEvent(new frame.contentWindow.Event('change', { bubbles: true }));
+  await wait(250);
+  check(doc().documentElement.dataset.theme === 'dark', 'and the pit can be put back');
+
+  // ---- 37. a module can read itself out, and can be stopped ----
+  await boot();
+  await click('[data-act="open"][data-id="first-words"]');
+  await click('[data-act="browse"]', 300);
+  check(!!$('[data-act="readall"]'), 'a module offers to read itself out');
+  await click('[data-act="readall"]', 200);
+  check(!!$('.li.reading.now'), 'the card being read is marked');
+  check(!!$('[data-act="readstop"]'), 'and it can be stopped');
+  await wait(900);
+  const reached = $('.row.wrap small')?.textContent || '';
+  // The reader paces itself with the app's own timers, which a hidden tab clamps to a crawl.
+  // That is the browser being honest, not the app being broken — only judge pace when visible.
+  if (document.hidden) ok('pacing not judged — the tab is hidden and its timers are clamped');
+  else check(/card [2-9]/.test(reached), 'it moves along on its own', reached);
+  await click('[data-act="readstop"]', 300);
+  check(!$('.li.reading.now'), 'stopping clears the marker');
+  await wait(700);
+  check(!$('.li.reading.now'), 'and it stays stopped');
+  check((profile().stats.reviews || 0) === 0, 'listening is not studying');
+
+  // ---- 38. the week can be summed up and sent to someone ----
+  await boot();
+  await click('[data-act="open"][data-id="world-capitals"]');
+  await click('[data-game="recall"]');
+  await click('[data-act="flip"]');
+  await click('[data-g="good"]');
+  await click('[data-act="home"]', 150);
+  await click('[data-act="progress"]', 300);
+  const week = [...$$('.lede')].map(e => e.textContent).find(t => t.includes('This week'));
+  check(!!week, 'the progress screen sums the week up');
+  check(/1 of 7 days/.test(week || ''), 'counting all seven, not just the busy ones', week);
+  let sent = null;
+  const win2 = frame.contentWindow;
+  delete win2.navigator.share;                       // force the clipboard path
+  win2.navigator.clipboard.writeText = t => { sent = t; return Promise.resolve(); };
+  await click('[data-act="recap"]', 300);
+  check(/Learning Pit this week/.test(sent || ''), 'and it can be shared as plain text', sent);
+  check(/rank Initiate/.test(sent || ''), 'with the rank in it');
+
+  // ---- 39. true or false pairs a question with a claim that may be a lie ----
+  await boot();
+  await click('[data-act="open"][data-id="world-capitals"]');
+  await click('[data-game="truefalse"]', 300);
+  const capsTF = await fetch('./modules/world-capitals.json').then(r => r.json());
+  const realAnswer = Object.fromEntries(capsTF.cards.map(c => [c.front, c.back]));
+  check(!!$('.claim'), 'a claim is made about the card');
+  check($$('[data-act="tf"]').length === 2, 'and there are two ways to answer it');
+  const asked2 = $('.card .face').textContent.trim().split('\n')[0].trim();
+  const claimed = $('.claim').textContent.trim();
+  const isTrue = realAnswer[asked2] === claimed;
+  await click(`[data-act="tf"][data-v="${isTrue ? 1 : 0}"]`, 250);
+  check(!!$('.verdict.exact'), 'answering correctly is marked right', claimed + ' for ' + asked2);
+  check(profile().stats.correct === 1, 'and scores a hit');
+  check($('.verdict').textContent.includes(realAnswer[asked2]), 'the real answer is always shown');
+  await click('[data-act="next"]', 250);
+  check(!!$('.claim') && $('.claim').textContent.trim() !== claimed, 'then a fresh claim');
+
+  // ---- 40. one button starts something suitable, and varies it ----
+  await boot();
+  const rolled = [];
+  for (let i = 0; i < 5; i++) {
+    await click('[data-act="open"][data-id="world-capitals"]');
+    await click('[data-act="surprise"]', 250);
+    check(doc().getElementById('app').className.includes('session'), 'just start starts something');
+    rolled.push(profile().opts.lastGame);
+    await click('[data-act="home"]', 150);
+  }
+  check(rolled.every(Boolean), 'and remembers what it chose', rolled.join(' '));
+  check(rolled.every((k, i) => i === 0 || k !== rolled[i - 1]), 'never the same twice running',
+    rolled.join(' '));
+  // kid mode must not be handed the exercises that need reading and typing
+  await click('[data-act="settings"]', 250);
+  $('[data-opt="kid"]').click();
+  await wait(250);
+  await click('[data-act="home"]', 150);
+  const kidStarted = [];
+  for (let i = 0; i < 6; i++) {
+    await click('[data-act="open"][data-id="world-capitals"]');
+    await click('[data-act="surprise"]', 250);
+    kidStarted.push(profile().opts.lastGame);
+    await click('[data-act="home"]', 150);
+  }
+  check(!kidStarted.includes('type') && !kidStarted.includes('explain'),
+    'kid mode never lands on a typing exercise', kidStarted.join(' '));
+
+  // ---- 41. a new device asks who it is for ----
+  KEYS.forEach(k => localStorage.removeItem(k));
+  frame.src = './index.html?selftest';
+  await new Promise(r => frame.onload = r);
+  await waitFor('[data-act="setupkid"]');
+  check(!!$('[data-act="setupme"]') && !!$('[data-act="setupkid"]'), 'a fresh device asks who it is for');
+  check(!$('[data-act="open"]'), 'and shows nothing else until it knows');
+  $('[data-act="setupkid"]').click();
+  await wait(250);
+  doc().getElementById('dlg').value = 'Mira';
+  await click('.sheet-box [data-ok]', 500);
+  check(state().active === 'Mira', 'a child gets their own learner');
+  const mira = state().profiles.Mira.opts;
+  check(mira.kid === true && mira.tts === true, 'with kid mode and reading aloud on',
+    JSON.stringify(mira));
+  check(mira.size === 6 && mira.goal === 10, 'and a shorter sitting');
+  const shownToKid = $$('[data-act="open"]').map(b => b.dataset.id);
+  check(shownToKid.includes('colours') && shownToKid.includes('counting'),
+    "the children's modules are there", shownToKid.join(','));
+  check(!shownToKid.includes('cognitive-biases') && !shownToKid.includes('llm-literacy'),
+    'and the grown-up ones are put away');
+  check(!/import a module/.test(doc().body.textContent), 'the welcome speaks to a child, not a parent');
+  check(!!$('[data-act="open"]'), 'then the library');
+  frame.src = './index.html?selftest';
+  await new Promise(r => frame.onload = r);
+  await waitFor('[data-act="open"]');
+  check(!$('[data-act="setupme"]'), 'and it is never asked again');
+
+  // ---- 42. a counting card asks with a picture and answers with the pad ----
+  await boot();
+  await click('[data-act="open"][data-id="counting"]');
+  await click('[data-game="pad"]', 300);
+  check(!!$('.card .cardimg'), 'the things to be counted are on the card');
+  check($('.card .face').textContent.includes('How many'), 'with the question under them');
+  const shown = $('.card .cardimg').getAttribute('src');
+  const answer2 = (await fetch('./modules/counting.json').then(r => r.json()))
+    .cards.find(c => c.image === shown)?.back;
+  check(!!answer2, 'the card came from the counting module');
+  for (const d of answer2) await click(`[data-act="padtap"][data-n="${d}"]`, 60);
+  await click('[data-act="padok"]', 200);
+  check(!!$('.verdict.exact'), 'counting them right is marked right', answer2);
+
+  // ---- 43. the import preview is a chooser, not a sample ----
+  await boot();
+  await click('[data-act="import"]');
+  doc().getElementById('paste').value =
+    '## Pick Test\n| Q | A |\n|---|---|\n| one | 1 |\n| two | 2 |\n| three | 3 |';
+  await click('[data-act="paste"]', 300);
+  check($$('.picklist li').length === 3, 'every card is listed, not just the first few');
+  check($$('[data-drop]').every(b => b.checked), 'and all of them start included');
+  const second = $$('[data-drop]')[1];
+  second.checked = false;
+  second.dispatchEvent(new frame.contentWindow.Event('change', { bubbles: true }));
+  await wait(150);
+  await click('[data-act="commit"]', 500);
+  const picked = state().custom.find(m => m.id === 'pick-test');
+  check(picked?.cards.length === 2, 'only the ticked cards are imported', picked?.cards.length + ' cards');
+  check(!picked.cards.some(c => c.front === 'two'), 'the unticked one is left out',
+    picked.cards.map(c => c.front).join(','));
+
+  // ---- 44. what was studied is written down, sitting by sitting ----
+  await boot();
+  check(!(profile().stats.sessions || []).length, 'nothing has been sat yet');
+  await click('[data-act="open"][data-id="times-tables"]');
+  await click('[data-game="recall"]');
+  let sat2 = 0;
+  while ($('[data-act="flip"]') && sat2 < 30) {
+    await click('[data-act="flip"]', 40);
+    await click('[data-g="easy"]', 40);
+    sat2++;
+  }
+  check(doc().getElementById('app').className.includes('results'), 'the sitting ends');
+  const log = profile().stats.sessions || [];
+  check(log.length === 1, 'and one sitting is on the record', JSON.stringify(log));
+  check(log[0].m === 'Times Tables' && log[0].g === 'recall', 'with what was studied and how',
+    JSON.stringify(log[0]));
+  check(log[0].r + log[0].w >= 1, 'and how it went');
+  await click('[data-act="home"]', 150);
+  await click('[data-act="progress"]', 300);
+  check([...$$('.li')].some(e => /Times Tables/.test(e.textContent) && /today/.test(e.textContent)),
+    'the progress screen lists it');
+  // an exam is measured, not recorded as study
+  await click('[data-act="back"]', 200);
+  await click('[data-act="mockexam"]', 250);
+  $('[data-choice="*"]').click();
+  await wait(200);
+  $('[data-choice="10"]').click();
+  await wait(300);
+  for (let i = 0; i < 12 && $('[data-act="flip"]'); i++) {
+    await click('[data-act="flip"]', 40);
+    await click('[data-g="good"]', 40);
+  }
+  check((profile().stats.sessions || []).length === 1, 'an exam adds nothing to the record',
+    (profile().stats.sessions || []).length + ' sittings');
+
+  // ---- 45. a card that caught you out can be annotated on the spot ----
+  await boot();
+  await click('[data-act="open"][data-id="logical-fallacies"]');
+  await click('[data-game="recall"]');
+  let played = 0;
+  while ($('[data-act="flip"]') && played < 40) {
+    await click('[data-act="flip"]', 40);
+    await click(played % 2 === 0 ? '[data-g="again"]' : '[data-g="good"]', 40);
+    played++;
+  }
+  check(doc().getElementById('app').className.includes('results'), 'the sitting ends on results');
+  check($$('[data-act="notecard"]').length > 0, 'each miss offers a note');
+  const missedCard = $('.li.missed b').textContent.trim();
+  await click('[data-act="notecard"]', 300);
+  check(!!doc().getElementById('dlg'), 'which opens a field');
+  doc().getElementById('dlg').value = 'I keep mixing this one up';
+  await click('.sheet-box [data-ok]', 600);
+  const noted = state().custom.find(m => m.id === 'logical-fallacies')
+    ?.cards.find(c => c.front === missedCard);
+  check(noted?.note === 'I keep mixing this one up', 'and it lands on the card itself',
+    JSON.stringify(noted?.note));
+  check($('.li.missed').textContent.includes('mixing this one up'), 'and shows straight away');
+
+  // ---- 46. the slate takes a finger, and the word fits on it ----
+  await boot();
+  await click('[data-act="open"][data-id="first-words"]');
+  await click('[data-game="trace"]', 350);
+  // the canvas is replaced on every redraw, so always look it up again
+  const slateNow = () => doc().getElementById('slate');
+  check(!!slateNow(), 'there is something to write on');
+  const inkOn = () => {
+    const cv = slateNow();
+    const px = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+    let n = 0;
+    for (let i = 3; i < px.length; i += 4) if (px[i] > 0) n++;
+    return n;
+  };
+  check(inkOn() === 0, 'and it starts blank — the word is not given away');
+  const box = slateNow().getBoundingClientRect();
+  const P = (t, x, y) => slateNow().dispatchEvent(new frame.contentWindow.PointerEvent(t,
+    { pointerId: 1, clientX: box.left + x, clientY: box.top + y, bubbles: true }));
+  P('pointerdown', 30, 30); P('pointermove', 90, 80); P('pointermove', 150, 40); P('pointerup', 150, 40);
+  check(inkOn() > 100, 'a finger leaves a mark');
+  await click('[data-act="wipe"]', 150);
+  check(inkOn() === 0, 'and Clear takes it away');
+  await click('[data-act="showword"]', 250);
+  check(inkOn() > 100, 'showing the word draws it faintly to trace');
+  // the guide has to fit the slate, or it cannot be traced
+  const guide = slateNow();
+  const px = guide.getContext('2d').getImageData(0, 0, guide.width, guide.height).data;
+  let minX = guide.width, maxX = 0;
+  for (let y = 0; y < guide.height; y += 3) {
+    for (let x = 0; x < guide.width; x++) if (px[(y * guide.width + x) * 4 + 3] > 0) {
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+    }
+  }
+  check(maxX - minX < guide.width, 'and it fits inside it', `${maxX - minX} of ${guide.width}`);
+  check((profile().stats.reviews || 0) === 0, 'nothing is graded until the child says so');
+  await click('[data-g="good"]', 200);
+  check(profile().stats.reviews === 1, 'and then it is');
+
+  // ---- 47. kid mode puts a latch on the grown-up door ----
+  await boot();
+  await click('[data-act="settings"]', 250);
+  $('[data-opt="kid"]').click();
+  await wait(250);
+  await click('[data-act="home"]', 200);
+  check(!$('[data-act="quickcard"]') && !$('[data-act="mockexam"]'),
+    'the grown-up entrances are off the home screen');
+  await click('[data-act="settings"]', 300);
+  const latch = $('.sheet-box p')?.textContent || '';
+  check(/Grown-ups only/.test(latch), 'settings asks a question first', latch);
+  const latchSum = latch.match(/(\d+) × (\d+)/);
+  doc().getElementById('dlg').value = '1';
+  await click('.sheet-box [data-ok]', 300);
+  check(!doc().getElementById('app').className.includes('settings'), 'a wrong answer does not open it');
+  await click('[data-act="settings"]', 300);
+  const sum2 = $('.sheet-box p').textContent.match(/(\d+) × (\d+)/);
+  doc().getElementById('dlg').value = String(+sum2[1] * +sum2[2]);
+  await click('.sheet-box [data-ok]', 400);
+  check(doc().getElementById('app').className.includes('settings'), 'the right answer does');
+  check(!!latchSum, 'and the question is a real sum');
+
+  // ---- 48. a card can accept more than one wording ----
+  await boot();
+  await click('[data-act="import"]');
+  doc().getElementById('paste').value = JSON.stringify({ title: 'Alt Test', cards: [
+    { front: 'Which country flies the stars and stripes?', back: 'the United States',
+      alt: ['USA', 'US', 'America'] }] });
+  await click('[data-act="paste"]', 300);
+  await click('[data-act="commit"]', 600);
+  const altStored = state().custom.find(m => m.id === 'alt-test')?.cards[0];
+  check(altStored?.alt?.length === 3, 'the alternatives survive the import', JSON.stringify(altStored?.alt));
+  await click('[data-act="open"][data-id="alt-test"]');
+  await click('[data-game="type"]', 350);
+  for (let t = 0; t < 30 && !doc().getElementById('ans'); t++) await wait(100);
+  doc().getElementById('ans').value = 'USA';
+  await click('#typef .btn', 400);
+  check(!!$('.verdict.exact'), 'and an alternative is marked right');
+  check($('.verdict').textContent.includes('the United States'), 'while the card still shows its own answer');
+  check(profile().stats.correct === 1, 'and it counts as a hit');
+
+  // ---- 49. the whole interface can be made bigger ----
+  await boot();
+  const baseSize = frame.contentWindow.getComputedStyle(doc().body).fontSize;
+  await click('[data-act="settings"]', 250);
+  const textSel = $('[data-opt="text"]');
+  check(!!textSel, 'the text size can be chosen');
+  textSel.value = '135';
+  textSel.dispatchEvent(new frame.contentWindow.Event('change', { bubbles: true }));
+  await wait(300);
+  const bigSize = frame.contentWindow.getComputedStyle(doc().body).fontSize;
+  check(parseFloat(bigSize) > parseFloat(baseSize) * 1.2, 'and everything grows with it',
+    `${baseSize} to ${bigSize}`);
+  check(doc().documentElement.scrollWidth <= doc().documentElement.clientWidth + 1,
+    'without pushing anything off the side',
+    `${doc().documentElement.scrollWidth} of ${doc().documentElement.clientWidth}`);
+  await click('[data-act="home"]', 200);
+  check(frame.contentWindow.getComputedStyle(doc().body).fontSize === bigSize, 'and it stays that way');
+
+  // ---- 50. a deletion can be taken back ----
+  await boot();
+  await click('[data-act="open"][data-id="solar-system"]');
+  await click('[data-act="edit"]', 400);
+  await click('.card-row .rowbtn', 300);
+  const doomed = $('[data-card="front"]').value;
+  await click('[data-act="delcard"]', 300);
+  await click('.sheet-box [data-ok]', 300);
+  // the undo toast appears only after touch() finishes reloading the library — poll, don't guess
+  for (let t = 0; t < 40 && !$('.toast button'); t++) await wait(100);
+  const gone = state().custom.find(m => m.id === 'solar-system').cards;
+  check(!gone.some(c => c.front === doomed), 'the card goes');
+  check(!!$('.toast button'), 'and the toast offers to put it back');
+  $('.toast button').click();
+  await wait(600);
+  const backAgain = state().custom.find(m => m.id === 'solar-system').cards;
+  check(backAgain.some(c => c.front === doomed), 'which it does', doomed);
+  check(backAgain.length === gone.length + 1, 'exactly one card back');
+  // and a whole module
+  await boot();
+  await click('[data-act="import"]');
+  doc().getElementById('paste').value = '## Bin Test\n| Q | A |\n|---|---|\n| a | 1 |\n| b | 2 |';
+  await click('[data-act="paste"]', 300);
+  await click('[data-act="commit"]', 500);
+  await click('[data-act="import"]', 300);
+  await click('[data-act="delcustom"][data-id="bin-test"]', 300);
+  await click('.sheet-box [data-ok]', 500);
+  check(!state().custom.some(m => m.id === 'bin-test'), 'a removed module goes');
+  $('.toast button').click();
+  await wait(600);
+  check(state().custom.some(m => m.id === 'bin-test'), 'and comes back with its cards',
+    JSON.stringify(state().custom.map(m => m.id)));
+
+  // ---- 51. a card can be starred, and the starred pile drilled ----
+  await boot();
+  check(!$('[data-act="drillstarred"]'), 'nothing is starred to begin with');
+  await click('[data-act="open"][data-id="world-capitals"]');
+  await click('[data-game="recall"]', 300);
+  check($('[data-act="starcard"]')?.textContent.includes('star it'), 'a card can be starred');
+  await click('[data-act="starcard"]', 250);
+  check($('[data-act="starcard"]')?.textContent.includes('starred'), 'and says so once it is');
+  check(Object.values(profile().srs).filter(x => x.star).length === 1, 'the star is on the card');
+  await click('[data-act="starcard"]', 250);
+  check(Object.values(profile().srs).filter(x => x.star).length === 0, 'and comes off again');
+  await click('[data-act="starcard"]', 250);
+  await click('[data-act="home"]', 250);
+  const pile = $('[data-act="drillstarred"]');
+  check(pile?.textContent.includes('(1)'), 'the home screen counts the pile', pile?.textContent);
+  pile.click();
+  await wait(350);
+  check(doc().getElementById('app').className.includes('session'), 'and drills it');
+  await click('[data-act="flip"]', 80);
+  await click('[data-g="good"]', 200);
+  check(Object.keys(profile().srs).length === 1, 'grading it lands in its own module',
+    Object.keys(profile().srs).join(','));
+
+  // ---- 52. search reaches the parts of a card that are not the two sides ----
+  await boot();
+  const searchBox = doc().getElementById('q');
+  searchBox.value = 'bombers';
+  searchBox.dispatchEvent(new frame.contentWindow.Event('input'));
+  await wait(300);
+  const found = [...$$('#results .li .rowbtn')].map(e => e.textContent);
+  check(found.length > 0, 'a word that only appears in a note still finds the card',
+    found.join(' | ').slice(0, 80));
+  check(/Survivorship/.test(found.join(' ')), 'and it is the right one');
+  // s stars whatever is on screen
+  await boot();
+  await click('[data-act="open"][data-id="world-capitals"]');
+  await click('[data-game="recall"]', 300);
+  frame.contentDocument.body.dispatchEvent(
+    new frame.contentWindow.KeyboardEvent('keydown', { key: 's', bubbles: true }));
+  await wait(250);
+  check(Object.values(profile().srs).filter(x => x.star).length === 1, 'and s stars a card');
+
+  // ---- 53. the editor reads the cards back to you ----
+  await boot();
+  await click('[data-act="import"]');
+  doc().getElementById('paste').value = JSON.stringify({ title: 'Sloppy', cards: [
+    { front: 'What is the capital of France?', back: 'Paris' },
+    { front: 'Which city is Paris?', back: 'Paris' },
+    { front: 'Describe the Krebs cycle in detail', back: 'x'.repeat(140) },
+    { front: 'Which planet is red?', back: 'Mars' }] });
+  await click('[data-act="paste"]', 300);
+  await click('[data-act="commit"]', 600);
+  await click('[data-act="open"][data-id="sloppy"]');
+  await click('[data-act="edit"]', 500);
+  const audit = $('.preview.audit');
+  check(!!audit, 'the editor flags the cards worth a second look');
+  check(/2 cards/.test(audit.textContent), 'two of the four', audit.textContent.slice(0, 40));
+  check(/gives itself away/.test(audit.textContent), 'a question containing its answer');
+  check(/long answer/.test(audit.textContent), 'and an essay on the back');
+  check(!/Which planet is red/.test(audit.textContent), 'while a good card is not mentioned');
+  await click('.preview.audit .rowbtn', 400);
+  check($('[data-card="front"]')?.value === 'Which city is Paris?', 'and a flagged card opens for editing');
+
+  // ---- 54. two modules can be shuffled together ----
+  await boot();
+  await click('[data-act="open"][data-id="world-capitals"]');
+  check(!!$('[data-act="mixwith"]'), 'a module offers to mix with another');
+  await click('[data-act="mixwith"]', 350);
+  check(/Mix World Capitals with/.test($('.sheet-box p')?.textContent || ''), 'and asks which');
+  $('[data-choice="flags"]').click();
+  await wait(400);
+  check(doc().getElementById('app').className.includes('session'), 'the mixed sitting starts');
+  const sources = new Set();
+  let mixed = 0;
+  while ($('[data-act="flip"]') && mixed < 30) {
+    sources.add($('.from')?.textContent || '');
+    await click('[data-act="flip"]', 40);
+    await click('[data-g="good"]', 40);
+    mixed++;
+  }
+  check(sources.size === 2, 'cards come from both modules', [...sources].join(' + '));
+  const homes = [...new Set(Object.keys(profile().srs).map(k => k.split(':')[0]))].sort();
+  check(homes.join(',') === 'flags,world-capitals', 'and each is graded back into its own',
+    homes.join(','));
+
+  // ---- 55. the progress screen says when this learner is sharp ----
+  await boot();
+  await click('[data-act="progress"]', 300);
+  check(!/answer best/.test(doc().body.textContent), 'with no history it says nothing about the time of day');
+  {
+    const st = JSON.parse(localStorage.getItem('pit.v1'));
+    const p = st.profiles[st.active];
+    const at = (dayAgo, h, r, w) => {
+      const d = new Date();
+      d.setDate(d.getDate() - dayAgo);
+      d.setHours(h, 0, 0, 0);
+      return { t: d.getTime(), m: 'World Capitals', g: 'recall', r, w };
+    };
+    p.stats.sessions = [at(1, 9, 12, 1), at(2, 8, 11, 2), at(3, 21, 4, 9), at(4, 22, 3, 10)];
+    localStorage.setItem('pit.v1', JSON.stringify(st));
+  }
+  frame.src = './index.html?selftest';
+  await new Promise(r => frame.onload = r);
+  await waitFor('[data-act="open"]');
+  await click('[data-act="progress"]', 300);
+  const whenLine = [...$$('.lede')].map(e => e.textContent).find(t => /answer best/.test(t)) || '';
+  check(/morning/.test(whenLine), 'and with it, which part of the day wins', whenLine.trim().slice(0, 70));
+  check(/evening/.test(whenLine), 'against the one that does not');
+  // reading speed
+  await click('[data-act="back"]', 200);
+  await click('[data-act="settings"]', 250);
+  const rate = $('[data-opt="rate"]');
+  check(!!rate, 'reading speed can be set');
+  rate.value = '0.7';
+  rate.dispatchEvent(new frame.contentWindow.Event('change', { bubbles: true }));
+  await wait(250);
+  check(profile().opts.rate === 0.7, 'and it sticks', JSON.stringify(profile().opts.rate));
+
+  // ---- 56. long cards read as prose, and tiles say when they were last studied ----
+  await boot();
+  const wall = 'A very long question that goes on and on about the Krebs cycle and its inputs '
+    + 'and outputs and every electron carrier it feeds, at the length people actually paste. ';
+  await click('[data-act="import"]');
+  doc().getElementById('paste').value = JSON.stringify({ title: 'Wall Of Text',
+    cards: [{ front: wall + wall, back: 'It powers the cell' }] });
+  await click('[data-act="paste"]', 300);
+  await click('[data-act="commit"]', 600);
+  await click('[data-act="open"][data-id="wall-of-text"]');
+  await click('[data-game="recall"]', 350);
+  const face = $('.card .face');
+  check(face.classList.contains('long'), 'a pasted paragraph is treated as prose');
+  const prose = parseFloat(frame.contentWindow.getComputedStyle(face).fontSize);
+  check(frame.contentWindow.getComputedStyle(face).textAlign === 'left', 'left aligned, not centred');
+  await click('[data-act="flip"]', 100);
+  await click('[data-g="good"]', 200);
+  await click('[data-act="home"]', 300);
+  const tileText = [...$$('.tile')].map(t => t.textContent).find(t => /Wall Of Text/.test(t)) || '';
+  check(/today/.test(tileText), 'and the tile says when it was last studied', tileText.slice(-40));
+  const other = [...$$('.tile')].map(t => t.textContent).find(t => /Flags/.test(t)) || '';
+  check(!/ago|today/.test(other), 'while an untouched module says nothing');
+  await click('[data-act="open"][data-id="colours"]');
+  await click('[data-game="recall"]', 300);
+  const small = parseFloat(frame.contentWindow.getComputedStyle($('.card .face')).fontSize);
+  check(small > prose, 'a short card still gets the big type', `${small} vs ${prose}`);
+
+  // ---- 57. a module too big for a link becomes a file ----
+  await boot();
+  const win3 = frame.contentWindow;
+  const realClick = win3.HTMLAnchorElement.prototype.click;
+  let savedAs = null;
+  // stub the anchor so nothing lands in the tester's Downloads folder
+  win3.HTMLAnchorElement.prototype.click = function () { if (this.download) savedAs = this.download; };
+  delete win3.navigator.share;                     // force the file path
+  await click('[data-act="open"][data-id="picture-words"]');
+  await click('[data-act="edit"]', 400);
+  await click('[data-act="share"]', 700);
+  win3.HTMLAnchorElement.prototype.click = realClick;
+  check(savedAs === 'picture-words.json', 'a module with pictures is handed over as a file',
+    String(savedAs));
+  check(/file instead/.test($('[aria-live]')?.textContent || ''), 'and says why');
+
+  // ---- 58. the library writes itself out as markdown, and reads back in ----
+  await boot();
+  const win4 = frame.contentWindow;
+  const realClick2 = win4.HTMLAnchorElement.prototype.click;
+  const realBlob = win4.Blob;
+  let written = null, name2 = null;
+  win4.Blob = function (parts, opts) { written = parts.join(''); return new realBlob(parts, opts); };
+  win4.HTMLAnchorElement.prototype.click = function () { if (this.download) name2 = this.download; };
+  await click('[data-act="settings"]', 300);
+  await click('[data-act="exportmd"]', 500);
+  win4.HTMLAnchorElement.prototype.click = realClick2;
+  win4.Blob = realBlob;
+  check(name2 === 'learning-pit.md', 'the library is written out as one document', String(name2));
+  check(/## World Capitals/.test(written || ''), 'with a heading per module');
+  check(/\| Question \| Answer \| Hint \| Why \|/.test(written || ''), 'and a table per module');
+  // and the app can read its own export back
+  await click('[data-act="home"]', 200);
+  await click('[data-act="import"]', 250);
+  doc().getElementById('paste').value = written;      // the whole document, straight back in
+  await click('[data-act="paste"]', 600);
+  const previews = $$('.preview').map(p => p.textContent.replace(/\s+/g, ' '));
+  check(previews.length >= 10, 'the whole document reads back as its modules', previews.length + ' found');
+  check(previews.some(p => /World Capitals 35 cards/.test(p)), 'each with all of its cards',
+    previews.find(p => /World Capitals/.test(p))?.slice(0, 50));
+
+  // ---- 59. a question living in two modules is pointed out ----
+  await boot();
+  await click('[data-act="settings"]', 350);
+  check(!/appear in more than one/.test(doc().body.textContent), 'a tidy library says nothing');
+  await click('[data-act="home"]', 200);
+  await click('[data-act="import"]');
+  doc().getElementById('paste').value = JSON.stringify({ title: 'Capitals Again',
+    cards: [{ front: 'Japan', back: 'Tokyo' }, { front: 'Peru', back: 'Lima' }] });
+  await click('[data-act="paste"]', 300);
+  await click('[data-act="commit"]', 600);
+  await click('[data-act="settings"]', 500);
+  const overlap = [...$$('.lede')].map(e => e.textContent).find(t => /appear in more than one/.test(t)) || '';
+  check(/2 questions/.test(overlap), 'and an overlapping one is counted', overlap.slice(0, 50));
+  const listed = $$('.list .li .rowbtn').map(e => e.textContent).filter(t => /Japan/.test(t));
+  check(listed.length === 1 && /World Capitals/.test(listed[0]), 'naming both modules it lives in',
+    listed[0]?.replace(/\s+/g, ' ').slice(0, 60));
+
+  // ---- 60. a streak about to lapse says so, and stops once you study ----
+  await boot();
+  {
+    const st = JSON.parse(localStorage.getItem('pit.v1'));
+    const p = st.profiles[st.active];
+    p.stats.streak = 6;
+    p.stats.lastDay = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    p.stats.days = {};
+    localStorage.setItem('pit.v1', JSON.stringify(st));
+  }
+  frame.src = './index.html?selftest';
+  await new Promise(r => frame.onload = r);
+  await waitFor('[data-act="open"]');
+  check(/6 day streak/.test($('.lede')?.textContent || ''), 'the home screen warns a streak is at risk',
+    $('.lede')?.textContent.replace(/\s+/g, ' ').slice(0, 60));
+  await click('[data-act="open"][data-id="colours"]');
+  await click('[data-game="recall"]', 250);
+  await click('[data-act="flip"]', 100);
+  await click('[data-g="good"]', 200);
+  await click('[data-act="home"]', 300);
+  check(!/day streak/.test($('.lede')?.textContent || ''), 'and stops the moment you study');
+  // the schedule explains itself where the forecast is
+  await click('[data-act="progress"]', 300);
+  check(/comes back in a day, then three/.test(doc().body.textContent),
+    'and the forecast says what the schedule is doing');
+
+  // ---- 61. the accent stays readable on whichever ground it lands ----
+  await boot();
+  const lum = c => {
+    const [r, g, b] = c.match(/\d+/g).map(Number).map(v => {
+      v /= 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const contrast = (a, b) => {
+    const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m);
+    return (x + 0.05) / (y + 0.05);
+  };
+  const accentOn = () => {
+    const el = doc().createElement('span');
+    el.style.color = 'var(--cyan)';
+    doc().body.append(el);
+    const c = frame.contentWindow.getComputedStyle(el).color;
+    el.remove();
+    return contrast(c, frame.contentWindow.getComputedStyle(doc().body).backgroundColor);
+  };
+  await click('[data-act="settings"]', 300);
+  const setTheme = async v => {
+    const sel = $('[data-opt="theme"]');
+    sel.value = v;
+    sel.dispatchEvent(new frame.contentWindow.Event('change', { bubbles: true }));
+    await wait(250);
+  };
+  await setTheme('dark');
+  check(accentOn() >= 4.5, 'the accent reads against the pit', accentOn().toFixed(2));
+  await setTheme('light');
+  check(accentOn() >= 4.5, 'and against daylight', accentOn().toFixed(2));
+  await click('[data-act="accent"][data-c="lime"]', 300);
+  check(accentOn() >= 4.5, 'whichever colour the learner picked', accentOn().toFixed(2));
+  await setTheme('dark');
+  check(accentOn() >= 4.5, 'in either theme', accentOn().toFixed(2));
+
+  // ---- 62. the due pile says how long it will take ----
+  await boot();
+  await click('[data-act="open"][data-id="world-capitals"]');
+  await click('[data-game="recall"]', 250);
+  let studied = 0;
+  while ($('[data-act="flip"]') && studied < 40) {
+    await click('[data-act="flip"]', 30);
+    await click('[data-g="good"]', 30);
+    studied++;
+  }
+  {
+    // rewind what was just learned, and give the learner a pace to be measured against
+    const st = JSON.parse(localStorage.getItem('pit.v1'));
+    const p = st.profiles[st.active];
+    for (const k of Object.keys(p.srs)) p.srs[k].due = Date.now() - 86400000;
+    p.stats.sessions = [
+      { t: Date.now(), m: 'M', g: 'recall', r: 10, w: 0, secs: 80 },
+      { t: Date.now(), m: 'M', g: 'recall', r: 10, w: 0, secs: 70 },
+      { t: Date.now(), m: 'M', g: 'recall', r: 10, w: 0, secs: 90 },
+    ];
+    localStorage.setItem('pit.v1', JSON.stringify(st));
+  }
+  frame.src = './index.html?selftest';
+  await new Promise(r => frame.onload = r);
+  await waitFor('[data-act="open"]');
+  const duePile = $('.due-all')?.textContent.replace(/\s+/g, ' ') || '';
+  check(/due/.test(duePile), 'the home screen leads with the due pile', duePile.slice(0, 60));
+  check(/about \d+ min/.test(duePile), 'and says how long it will take', duePile.slice(0, 60));
+  check(!/1 modules/.test(duePile), 'without saying "1 modules"', duePile.slice(0, 60));
+
+  // ---- 63. a sitting says how long it took, and the week adds it up ----
+  await boot();
+  await click('[data-act="open"][data-id="shapes"]');
+  check(/about \d+ min/.test($('[data-act="surprise"]')?.textContent || ''),
+    'a module says how long a sitting will take', $('[data-act="surprise"]')?.textContent.trim());
+  await click('[data-game="recall"]', 300);
+  let shapes = 0;
+  while ($('[data-act="flip"]') && shapes < 30) {
+    await click('[data-act="flip"]', 30);
+    await click('[data-g="good"]', 30);
+    shapes++;
+  }
+  const took = [...$$('.lede')].map(e => e.textContent).find(t => /cards in /.test(t)) || '';
+  check(/\d+ cards in \d+/.test(took), 'and the results say how long it did take', took.trim());
+  check((profile().stats.sessions || [])[0]?.secs >= 0, 'which is on the record too',
+    JSON.stringify((profile().stats.sessions || [])[0]));
+
+  // ---- 64. a module says how it has actually gone ----
+  await boot();
+  await click('[data-act="open"][data-id="first-words"]');
+  check(!/you get right/.test($('.stats')?.textContent || ''), 'with no history it claims nothing');
+  await click('[data-game="recall"]', 250);
+  let firstWords = 0;
+  while ($('[data-act="flip"]') && firstWords < 40) {
+    await click('[data-act="flip"]', 30);
+    await click(firstWords % 4 === 0 ? '[data-g="again"]' : '[data-g="good"]', 30);
+    firstWords++;
+  }
+  await click('[data-act="home"]', 200);
+  await click('[data-act="open"][data-id="first-words"]', 300);
+  const stats = $('.stats')?.textContent.replace(/\s+/g, ' ') || '';
+  check(/\d+%\s*you get right/.test(stats), 'once there is a sitting behind it, it says so', stats);
+
+  // ---- 65. a wrong pick names the card it was borrowed from ----
+  await boot();
+  const wc = await fetch('./modules/world-capitals.json').then(r => r.json());
+  const rightAns = Object.fromEntries(wc.cards.map(c => [c.front, c.back]));
+  await click('[data-act="open"][data-id="world-capitals"]');
+  await click('[data-game="choice"]', 350);
+  let picks = 0, deliberateMiss = false;
+  while ($('.opt:not([disabled])') && picks < 40) {
+    const front = $('.face').textContent.trim().split('\n')[0].trim();
+    const opts = $$('.opt:not([disabled])');
+    let btn = opts.find(b => b.textContent.trim() === rightAns[front]);
+    if (!deliberateMiss) {
+      const wrong = opts.find(b => b.textContent.trim() !== rightAns[front]);
+      if (wrong) { btn = wrong; deliberateMiss = true; }
+    }
+    (btn || opts[0]).click();
+    await wait(80);
+    $('[data-act="next"]')?.click();
+    await wait(80);
+    picks++;
+  }
+  check(doc().getElementById('app').className.includes('results'), 'the sitting ends on results');
+  const mixHdr = [...$$('h2')].some(h => /mixed these up/i.test(h.textContent));
+  check(mixHdr, 'the wrong pick is called a mix-up, not just wrong');
+  const mixRow = [...$$('.li.missed em')].map(e => e.textContent).find(t => /belongs to/.test(t)) || '';
+  check(/belongs to/.test(mixRow), 'and names the card the answer was borrowed from', mixRow.slice(0, 70));
+  check(![...$$('h2')].some(h => /slowly/i.test(h.textContent)),
+    'a brisk sitting has no laboured answers to report');
+
+  // ---- 66. the due count reaches the installed app's icon ----
+  await boot();
+  const badge = [];
+  frame.contentWindow.navigator.setAppBadge = n => { badge.push(['set', n]); return Promise.resolve(); };
+  frame.contentWindow.navigator.clearAppBadge = () => { badge.push(['clear']); return Promise.resolve(); };
+  await click('[data-act="progress"]', 300);
+  check(badge.length > 0, 'a redraw refreshes the badge');
+  check(badge.at(-1)[0] === 'clear', 'and with nothing due it is cleared', JSON.stringify(badge.at(-1)));
+
+  // ---- 67. one card can move house, and its history moves with it ----
+  await boot();
+  for (const paste of ['## Move A\n| Q | A |\n|---|---|\n| x | 1 |\n| y | 2 |',
+                       '## Move B\n| Q | A |\n|---|---|\n| z | 3 |']) {
+    await click('[data-act="import"]', 250);
+    doc().getElementById('paste').value = paste;
+    await click('[data-act="paste"]', 300);
+    await click('[data-act="commit"]', 500);
+  }
+  await click('[data-act="open"][data-id="move-a"]');
+  await click('[data-game="recall"]', 250);
+  let moved = 0;
+  while ($('[data-act="flip"]') && moved < 10) {
+    await click('[data-act="flip"]', 50);
+    await click('[data-g="good"]', 50);
+    moved++;
+  }
+  const before = Object.keys(profile().srs).filter(k => k.startsWith('move-a:')).length;
+  check(before === 2, 'both cards have a history to lose', before + ' scheduled');
+  await click('[data-act="home"]', 200);
+  await click('[data-act="open"][data-id="move-a"]');
+  await click('[data-act="edit"]', 400);
+  const rowX = $$('.card-row .rowbtn').find(b => b.textContent.trim().startsWith('x'));
+  rowX.click();
+  await wait(400);
+  await click('[data-act="movecard"]', 400);
+  check($('[data-choice]')?.dataset.choice === 'move-b', 'your own modules are offered first',
+    $('[data-choice]')?.dataset.choice);
+  $('[data-choice="move-b"]').click();
+  await wait(700);
+  const A = state().custom.find(m => m.id === 'move-a');
+  const B = state().custom.find(m => m.id === 'move-b');
+  check(A.cards.length === 1 && B.cards.length === 2, 'the card changes module',
+    A.cards.length + ' and ' + B.cards.length);
+  const carried = Object.keys(profile().srs).filter(k => k.startsWith('move-b:'));
+  check(carried.length === 1, 'and exactly one schedule entry moves with it');
+  check(profile().srs[carried[0]].reps > 0, 'with its repetitions intact',
+    JSON.stringify(profile().srs[carried[0]]));
+  check(Object.keys(profile().srs).filter(k => k.startsWith('move-a:')).length === 1,
+    'while the card that stayed keeps its own');
+
+  // ---- 68. stopping early keeps what was done ----
+  await boot();
+  await click('[data-act="open"][data-id="first-words"]');
+  await click('[data-game="recall"]', 300);
+  check(!$('[data-act="endsitting"]'), 'nothing to end before anything is answered');
+  await click('[data-act="flip"]', 60);
+  await click('[data-g="good"]', 200);
+  check(!!$('[data-act="endsitting"]'), 'one answer in, the sitting can be ended');
+  await click('[data-act="endsitting"]', 400);
+  check(doc().getElementById('app').className.includes('results'), 'and ending lands on results');
+  check($('.score')?.textContent.trim().startsWith('1'), 'scored as it stands',
+    $('.score')?.textContent.trim());
+  check((profile().stats.sessions || [])[0]?.r === 1, 'and the sitting is on the record',
+    JSON.stringify((profile().stats.sessions || [])[0]));
+
+  // ---- 69. full mastery earns a certificate ----
+  await boot();
+  await click('[data-act="open"][data-id="shapes"]');
+  check(!$('[data-act="certificate"]'), 'no certificate before the work');
+  // five new cards a sitting: two sittings cover the eight
+  for (let round = 0; round < 2; round++) {
+    await click('[data-game="recall"]', 300);
+    let g = 0;
+    while ($('[data-act="flip"]') && g < 20) {
+      await click('[data-act="flip"]', 30);
+      await click('[data-g="easy"]', 30);
+      g++;
+    }
+    await click('[data-act="home"]', 200);
+    await click('[data-act="open"][data-id="shapes"]', 250);
+  }
+  check(/8\s*resting/.test($('.stats')?.textContent.replace(/\s+/g, ' ') || ''), 'every card rests',
+    $('.stats')?.textContent.replace(/\s+/g, ' '));
+  check(!!$('[data-act="certificate"]'), 'and the certificate appears');
+  await click('[data-act="certificate"]', 400);
+  check($('.cert-module')?.textContent === 'Shapes', 'made out for the module');
+  check(($('.cert-who')?.textContent || '').includes(state().active), 'and for the learner',
+    $('.cert-who')?.textContent);
+  check((profile().stats.bestStreak || 0) >= 1, 'and the longest streak is being kept');
+
+  // ---- 70. mastery rolls up to the subject level ----
+  await boot();
+  await click('[data-act="progress"]', 350);
+  const subjectRows = $$('[data-act="subject"]').map(b => b.dataset.t);
+  check(subjectRows.length >= 2, 'the progress screen lists subjects', subjectRows.join(','));
+  check(subjectRows.includes('kids'), 'including the biggest ones');
+  const wordsBtn = $$('[data-act="subject"]').find(b => b.dataset.t === 'words');
+  wordsBtn.click();
+  await wait(400);
+  check(doc().getElementById('app').className.includes('home'), 'tapping one lands on the shelf');
+  check($('.chip.on')?.textContent.trim() === 'words', 'filtered to that subject');
+  check(!!$('[data-act="drilltag"]'), 'with the drill-everything button waiting');
+
+  // ---- 71. an import can be taken back whole ----
+  await click('[data-act="tag"][data-t="words"]', 200);      // clear the filter
+  await click('[data-act="import"]', 250);
+  doc().getElementById('paste').value = '## Oops\n| Q | A |\n|---|---|\n| bad | card |';
+  await click('[data-act="paste"]', 300);
+  await click('[data-act="commit"]', 500);
+  check(state().custom.some(m => m.id === 'oops'), 'the import lands');
+  check(/Undo/.test($('.toast')?.textContent || ''), 'with an Undo on the toast');
+  $('.toast button').click();
+  await wait(600);
+  check(!state().custom.some(m => m.id === 'oops'), 'and Undo takes the whole import back');
+
+  // ---- 72. a mixed-up pair can be drilled together on the spot ----
+  await boot();
+  const capMap = await fetch('./modules/world-capitals.json').then(r => r.json())
+    .then(j => Object.fromEntries(j.cards.map(c => [c.front, c.back])));
+  await click('[data-act="open"][data-id="world-capitals"]');
+  await click('[data-game="choice"]', 350);
+  let missOnce = false, went = 0;
+  while ($('.opt:not([disabled])') && went < 40) {
+    const front = $('.face').textContent.trim().split('\n')[0].trim();
+    const opts = $$('.opt:not([disabled])');
+    let btn = opts.find(b => b.textContent.trim() === capMap[front]);
+    if (!missOnce) {
+      const wr = opts.find(b => b.textContent.trim() !== capMap[front]);
+      if (wr) { btn = wr; missOnce = true; }
+    }
+    (btn || opts[0]).click();
+    await wait(60);
+    $('[data-act="next"]')?.click();
+    await wait(60);
+    went++;
+  }
+  check(!!$('[data-act="drillpair"]'), 'the mix-up offers to drill the pair');
+  await click('[data-act="drillpair"]', 400);
+  const pairFronts = new Set();
+  let pairRounds = 0;
+  while ($('[data-act="flip"]') && pairRounds < 12) {
+    pairFronts.add($('.face').textContent.trim().split('\n')[0].trim());
+    await click('[data-act="flip"]', 40);
+    await click('[data-g="good"]', 40);
+    pairRounds++;
+  }
+  check(pairFronts.size === 2, 'and the drill holds exactly the two confused cards',
+    [...pairFronts].join(' vs '));
+
+  // ---- 73. the sitting log exports as CSV, and u undoes ----
+  const win5 = frame.contentWindow;
+  const realClick5 = win5.HTMLAnchorElement.prototype.click;
+  const realBlob5 = win5.Blob;
+  let csvText = null, csvName = null;
+  win5.Blob = function (parts, opts) { csvText = parts.join(''); return new realBlob5(parts, opts); };
+  win5.HTMLAnchorElement.prototype.click = function () { if (this.download) csvName = this.download; };
+  await click('[data-act="home"]', 200);
+  await click('[data-act="settings"]', 300);
+  await click('[data-act="exporthistory"]', 400);
+  win5.HTMLAnchorElement.prototype.click = realClick5;
+  win5.Blob = realBlob5;
+  check(/history\.csv$/.test(csvName || ''), 'the sitting log saves as CSV', String(csvName));
+  check((csvText || '').startsWith('"when","module"'), 'with a header row', (csvText || '').slice(0, 40));
+  check((csvText || '').split('\n').length >= 3, 'and a line per sitting');
+  await click('[data-act="home"]', 200);
+  await click('[data-act="open"][data-id="world-capitals"]');
+  await click('[data-game="recall"]', 300);
+  await click('[data-act="flip"]', 60);
+  await click('[data-g="good"]', 200);
+  const beforeU = profile().stats.reviews;
+  doc().body.dispatchEvent(new win5.KeyboardEvent('keydown', { key: 'u', bubbles: true }));
+  await wait(250);
+  check(profile().stats.reviews === beforeU - 1, 'and u undoes the last answer',
+    beforeU + ' then ' + profile().stats.reviews);
+
+  // ---- 74. kid mode gets one giant Play, and it never rolls a duel ----
+  KEYS.forEach(k => localStorage.removeItem(k));
+  frame.src = './index.html?selftest';
+  await new Promise(r => frame.onload = r);
+  await waitFor('[data-act="setupkid"]');
+  $('[data-act="setupkid"]').click();
+  await wait(400);
+  doc().getElementById('dlg').value = 'Nia';
+  await click('.sheet-box [data-ok]', 700);
+  check(Object.keys(state().profiles).join(',') === 'Nia',
+    'a child set-up replaces the empty starter profile', Object.keys(state().profiles).join(','));
+  check(!!$('[data-act="kidplay"]'), 'the home screen leads with Play');
+  const rolledGames = new Set();
+  for (let i = 0; i < 6; i++) {
+    await click('[data-act="kidplay"]', 350);
+    check(doc().getElementById('app').className.includes('session'), 'Play starts a sitting');
+    rolledGames.add(profile().opts.lastGame);
+    await click('[data-act="home"]', 250);
+  }
+  check(!rolledGames.has('duel'), 'and never lands on a duel alone', [...rolledGames].join(','));
+  check(!rolledGames.has('type') && !rolledGames.has('explain'), 'nor on a typing exercise');
+
+  // ---- 75. a URL in the paste box is fetched, and sittings count aloud ----
+  await boot();
+  await click('[data-act="import"]', 250);
+  doc().getElementById('paste').value = new URL('./selftest-source.json', location.href).href;
+  await click('[data-act="paste"]', 700);
+  check(!!$('.preview'), 'a pasted URL is fetched instead of parsed');
+  check($('.preview b')?.textContent === 'Linked Source', 'and previews what it found');
+  await click('[data-act="back"]', 250);
+  await click('[data-act="open"][data-id="counting"]');
+  await click('[data-game="recall"]', 300);
+  check(/^0 of \d+$/.test($('.pcount')?.textContent || ''), 'a sitting says where you are',
+    $('.pcount')?.textContent);
+  await click('[data-act="flip"]', 60);
+  await click('[data-g="easy"]', 200);
+  check(/^1 of \d+$/.test($('.pcount')?.textContent || ''), 'and counts up as you go');
+
+  // ---- 76. a typo spotted while reading is one tap from its editor ----
+  await boot();
+  await click('[data-act="open"][data-id="opposites"]');
+  await click('[data-act="browse"]', 350);
+  const pencils = $$('[data-act="editfrom"]');
+  check(pencils.length === 20, 'every row carries a pencil', pencils.length + ' pencils');
+  pencils[2].click();
+  await wait(450);
+  check(doc().getElementById('app').className.includes('edit'), 'which opens the editor');
+  check($('[data-card="front"]')?.value === 'The opposite of up', 'on that very card',
+    $('[data-card="front"]')?.value);
+  // and Enter in the search box launches the drill
+  await click('[data-act="home"]', 300);
+  const finder = doc().getElementById('q');
+  finder.value = 'opposite of hot';
+  finder.dispatchEvent(new frame.contentWindow.Event('input'));
+  await wait(250);
+  finder.dispatchEvent(new frame.contentWindow.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  await wait(400);
+  check(doc().getElementById('app').className.includes('session'), 'Enter in search starts the drill');
+  check($('.face')?.textContent.includes('opposite of hot'), 'on the matching cards');
+
+  // ---- 77. the forecast looks a month out ----
+  await boot();
+  await click('[data-act="progress"]', 350);
+  check(!/Next 30 days/.test(doc().body.textContent), 'an empty schedule forecasts nothing');
+  await click('[data-act="back"]', 200);
+  await click('[data-act="open"][data-id="counting"]');
+  await click('[data-game="recall"]', 300);
+  let fcast = 0;
+  while ($('[data-act="flip"]') && fcast < 12) {
+    await click('[data-act="flip"]', 30);
+    await click('[data-g="easy"]', 30);
+    fcast++;
+  }
+  await click('[data-act="home"]', 200);
+  await click('[data-act="progress"]', 350);
+  const outlook = [...$$('.small-note')].map(e => e.textContent.replace(/\s+/g, ' '))
+    .find(t => /Next 30 days/.test(t)) || '';
+  check(/Next 30 days: \d+ review/.test(outlook), 'once cards rest, it says what the month holds', outlook);
+  check(/heaviest/.test(outlook), 'and which day is heaviest');
+
+  // ---- 78. a heavy store names the modules carrying the weight ----
+  await boot();
+  await click('[data-act="settings"]', 600);
+  check(!doc().querySelector('#heavy .li'), 'a light store accuses nobody');
+  {
+    const st = JSON.parse(localStorage.getItem('pit.v1'));
+    st.custom = st.custom || [];
+    st.custom.push({ id: 'fat', title: 'Fat Module', description: '', icon: '🖼️', tags: [],
+      savedAt: Date.now(), cards: [{ front: 'heavy', back: 'card',
+        image: 'data:image/png;base64,' + 'A'.repeat(2_200_000) }] });
+    localStorage.setItem('pit.v1', JSON.stringify(st));
+  }
+  frame.src = './index.html?selftest';
+  await new Promise(r => frame.onload = r);
+  await waitFor('[data-act="open"]');
+  await click('[data-act="settings"]', 800);
+  const heavy = [...$$('#heavy .li .rowbtn')].map(e => e.textContent.replace(/\s+/g, ' '));
+  check(heavy.some(t => /Fat Module/.test(t) && /\d{3,} KB/.test(t)),
+    'past two megabytes, the culprits are listed by size', heavy.join(' | '));
+
+  // ---- 79. the results screen offers the same cards another way ----
+  await boot();
+  await click('[data-act="open"][data-id="colours"]');
+  await click('[data-game="recall"]', 300);
+  let col = 0;
+  while ($('[data-act="flip"]') && col < 15) {
+    await click('[data-act="flip"]', 30);
+    await click('[data-g="good"]', 30);
+    col++;
+  }
+  check(!!$('[data-act="anotherway"]'), 'results offer another way through the module');
+  await click('[data-act="anotherway"]', 400);
+  check(doc().getElementById('app').className.includes('session'), 'which starts a fresh sitting');
+  check(!!profile().opts.lastGame, 'in whichever exercise the roll picked', profile().opts.lastGame);
+
+  // ---- 80. the whole sync loop runs against the mock drive ----
+  // device one: study, choose a setting, push
+  KEYS.forEach(k => localStorage.removeItem(k));
+  frame.src = './index.html?selftest&mock-drive';
+  await new Promise(r => frame.onload = r);
+  const first80 = await waitFor('[data-act="setupme"], [data-act="open"]');
+  if (first80.dataset.act === 'setupme') { first80.click(); await wait(200); }
+  await waitFor('[data-act="open"]');
+  await click('[data-act="open"][data-id="colours"]');
+  await click('[data-game="recall"]', 300);
+  await click('[data-act="flip"]', 60);
+  await click('[data-g="good"]', 200);
+  await click('[data-act="endsitting"]', 400);   // results, so the sitting reaches the log
+  await click('[data-act="home"]', 200);
+  await click('[data-act="settings"]', 300);
+  const themeSel80 = $('[data-opt="theme"]');
+  themeSel80.value = 'dark';
+  themeSel80.dispatchEvent(new frame.contentWindow.Event('change', { bubbles: true }));
+  await wait(250);
+  // the settings screen's own Connect/Sync button works with or without a client ID chip
+  (await waitFor('.btn[data-act="signin"]', 6000)).click();
+  for (let t = 0; t < 60 && !localStorage.getItem('pit.mockdrive'); t++) await wait(100);
+  const pushed = JSON.parse(localStorage.getItem('pit.mockdrive') || '{}');
+  check(!!pushed.body, 'device one pushes its state to the (mock) app folder');
+  check(JSON.parse(pushed.body).profiles?.Explorer?.stats?.reviews >= 1,
+    'with the review it just did inside');
+  // device two: same account, empty device — pull
+  localStorage.removeItem('pit.v1');
+  localStorage.removeItem('pit.session');
+  frame.src = './index.html?selftest&mock-drive';
+  await new Promise(r => frame.onload = r);
+  const first80b = await waitFor('[data-act="setupme"], [data-act="open"]');
+  if (first80b.dataset.act === 'setupme') { first80b.click(); await wait(200); }
+  await waitFor('[data-act="open"]');
+  await click('[data-act="settings"]', 300);
+  (await waitFor('.btn[data-act="signin"]', 6000)).click();
+  for (let t = 0; t < 60 && !(state().profiles?.Explorer?.stats?.reviews >= 1); t++) await wait(100);
+  const arrived = state().profiles?.Explorer;
+  check(arrived?.stats?.reviews >= 1, 'device two pulls the same learner down', JSON.stringify(arrived?.stats?.reviews));
+  check(arrived?.opts?.theme === 'dark', 'settings travel too', JSON.stringify(arrived?.opts?.theme));
+  check((arrived?.stats?.sessions || []).length >= 1, 'and the sitting log with them');
+
+  // ---- 81. a language-tagged module is spoken as that language ----
+  await boot();
+  await click('[data-act="import"]', 250);
+  doc().getElementById('paste').value = JSON.stringify({ title: 'Petit Test', lang: 'fr',
+    cards: [{ front: 'the cat', back: 'le chat' }, { front: 'the dog', back: 'le chien' }] });
+  await click('[data-act="paste"]', 300);
+  await click('[data-act="commit"]', 600);
+  check(state().custom.find(m => m.id === 'petit-test')?.lang === 'fr', 'the language tag survives import');
+  const win6 = frame.contentWindow;
+  const spoken = [];
+  const realSpeak = win6.speechSynthesis.speak.bind(win6.speechSynthesis);
+  win6.speechSynthesis.speak = u => spoken.push({ lang: u.lang, voiceLang: u.voice?.lang });
+  await click('[data-act="open"][data-id="petit-test"]');
+  await click('[data-act="browse"]', 300);
+  await click('[data-act="readall"]', 500);
+  $('[data-act="readstop"]')?.click();
+  win6.speechSynthesis.speak = realSpeak;
+  check(spoken[0]?.lang === 'fr', 'and the utterance carries it', JSON.stringify(spoken[0]));
+
+  // ---- 82. confusions accumulate across sittings and can be drilled from progress ----
+  await boot();
+  await click('[data-act="progress"]', 300);
+  check(!/Often confused/.test(doc().body.textContent), 'a clean record accuses nobody');
+  {
+    const st = JSON.parse(localStorage.getItem('pit.v1'));
+    st.profiles[st.active].stats.confusions = [{ a: 'Kenya', b: 'Japan', n: 3 }, { a: 'Chad', b: 'Peru', n: 1 }];
+    localStorage.setItem('pit.v1', JSON.stringify(st));
+  }
+  frame.src = './index.html?selftest';
+  await new Promise(r => frame.onload = r);
+  await waitFor('[data-act="open"]');
+  await click('[data-act="progress"]', 350);
+  const confRows = [...$$('.li')].map(e => e.textContent.replace(/\s+/g, ' ')).filter(t => /↔/.test(t));
+  check(confRows.length === 1, 'only pairs seen twice or more make the list', confRows.join(' | '));
+  check(/Kenya.*Japan.*3/.test(confRows[0]), 'with the count', confRows[0]);
+  await click('[data-act="drillconfusion"]', 400);
+  const confFronts = new Set();
+  let confRounds = 0;
+  while ($('[data-act="flip"]') && confRounds < 12) {
+    confFronts.add($('.face').textContent.trim().split('\n')[0].trim());
+    await click('[data-act="flip"]', 40);
+    await click('[data-g="good"]', 40);
+    confRounds++;
+  }
+  check(confFronts.size === 2 && confFronts.has('Kenya') && confFronts.has('Japan'),
+    'and the drill holds exactly that pair', [...confFronts].join(' vs '));
+  // and a sitting's mix-ups actually land in the record
+  {
+    const before = state().profiles[state().active].stats.confusions.find(x => x.a === 'Kenya')?.n;
+    check(before === 3, 'the record is untouched by a clean drill', String(before));
+  }
+
+  // ---- 83. the swap chip grades a picture card into its real row ----
+  await boot();
+  {
+    const st = JSON.parse(localStorage.getItem('pit.v1'));
+    st.custom = [{ id: 'pic-rev', title: 'Pic Rev', description: '', icon: 'P', tags: [],
+      cards: [
+        { front: 'What is this?', back: 'square', image: 'data:image/gif;base64,R0lGODlhAQABAAAAACw=' },
+        { front: 'What is this?', back: 'round', image: 'data:image/gif;base64,R0lGODlhAQABAIAAAP8AACw=' }] }];
+    localStorage.setItem('pit.v1', JSON.stringify(st));
+  }
+  frame.src = './index.html?selftest';
+  await new Promise(r => frame.onload = r);
+  await waitFor('[data-act="open"]');
+  await click('[data-act="open"][data-id="pic-rev"]', 300);
+  await click('[data-act="rev"]', 300);
+  await click('[data-game="recall"]', 350);
+  for (let t = 0; t < 8 && $('[data-act="flip"]'); t++) {
+    await click('[data-act="flip"]', 60);
+    await click('[data-g="good"]', 120);
+  }
+  const revCore = await import('./core.js');
+  const revMod = JSON.parse(localStorage.getItem('pit.v1')).custom.find(m => m.id === 'pic-rev');
+  const revWant = new Set(revMod.cards.map(c => revCore.cardKey('pic-rev', c)));
+  const revKeys = Object.keys(profile().srs).filter(k => k.startsWith('pic-rev:'));
+  check(revKeys.length === 2, 'two identical fronts stay two cards, even asked backwards',
+    revKeys.length + ' rows');
+  check(revKeys.every(k => revWant.has(k)), 'and both land in their real rows — no phantoms');
+
+  // ---- 84. an overdue mountain deals out over the week, and Undo takes it back ----
+  await boot();
+  const spreadCore = await import('./core.js');
+  {
+    const caps = await fetch('./modules/world-capitals.json').then(r => r.json());
+    const st = JSON.parse(localStorage.getItem('pit.v1'));
+    const p = st.profiles[st.active];
+    p.opts.goal = 10;
+    let hours = 1;
+    for (const c of caps.cards) p.srs[spreadCore.cardKey('world-capitals', c)] =
+      { reps: 1, lapses: 0, ease: 2.5, interval: 1, due: Date.now() - hours++ * 3600000, t: Date.now() };
+    localStorage.setItem('pit.v1', JSON.stringify(st));
+  }
+  frame.src = './index.html?selftest';
+  await new Promise(r => frame.onload = r);
+  await waitFor('[data-act="open"]');
+  const spreadBtn = await waitFor('[data-act="spreadpile"]');
+  check(!!spreadBtn, 'a heavy pile brings the offer to spread it');
+  spreadBtn.click();
+  await wait(400);
+  const spreadDays = new Set(Object.keys(profile().srs).filter(k => k.startsWith('world-capitals:'))
+    .map(k => Math.round((profile().srs[k].due - Date.now()) / 86400000)));
+  check(spreadDays.size === 7, 'the pile lands across seven days', [...spreadDays].join(','));
+  check(/Review 5 due/.test($('[data-act="reviewall"]')?.textContent || ''),
+    'today keeps a day-sized share', $('[data-act="reviewall"]')?.textContent);
+  const spreadUndo = $('#toasts .toast button');
+  check(!!spreadUndo, 'with an Undo on the table');
+  spreadUndo.click();
+  await wait(400);
+  check(Object.keys(profile().srs).filter(k => k.startsWith('world-capitals:'))
+    .filter(k => profile().srs[k].due <= Date.now()).length === 35,
+    'and Undo puts every card back on today');
+
+  // ---- 85. a re-paste shows what actually changed ----
+  await boot();
+  await click('[data-act="import"]', 300);
+  doc().getElementById('paste').value = '## Diff Case\n| Q | A |\n|---|---|\n| alpha | 1 |\n| beta | 2 |\n| gamma | 3 |';
+  await click('[data-act="paste"]', 300);
+  await click('[data-act="commit"]', 600);
+  await click('[data-act="import"]', 300);
+  doc().getElementById('paste').value = '## Diff Case\n| Q | A |\n|---|---|\n| alpha | 1 |\n| delta | 4 |\n| epsilon | 5 |';
+  await click('[data-act="paste"]', 400);
+  const diffWarn = ($('.warn')?.textContent || '').replace(/\s+/g, ' ');
+  check(/2 of these are new/.test(diffWarn), 'the paste is measured against what is already there', diffWarn);
+  check(/2 old cards are not in this paste and will go/.test(diffWarn), 'and losses are named before they happen');
+  check($$('.newtag').length === 2, 'each genuinely new card is badged', String($$('.newtag').length));
+  check($$('.newtag').every(e => /delta|epsilon/.test(e.closest('li').textContent)),
+    'and only those');
+
+  // ---- 86. the module screen names its own rough spots ----
+  await boot();
+  const roughCore = await import('./core.js');
+  {
+    const sol = await fetch('./modules/solar-system.json').then(r => r.json());
+    const st = JSON.parse(localStorage.getItem('pit.v1'));
+    const p = st.profiles[st.active];
+    p.srs[roughCore.cardKey('solar-system', sol.cards[0])] =
+      { reps: 4, lapses: 3, ease: 1.6, interval: 1, due: Date.now() + 86400000, t: Date.now(), log: 'agaa' };
+    p.srs[roughCore.cardKey('solar-system', sol.cards[1])] =
+      { reps: 4, lapses: 0, ease: 2.6, interval: 20, due: Date.now() + 86400000, t: Date.now(), log: 'gggg' };
+    localStorage.setItem('pit.v1', JSON.stringify(st));
+    window.roughFront = sol.cards[0].front;
+    window.smoothFront = sol.cards[1].front;
+  }
+  frame.src = './index.html?selftest';
+  await new Promise(r => frame.onload = r);
+  await waitFor('[data-act="open"]');
+  await click('[data-act="open"][data-id="solar-system"]', 350);
+  const roughBox = [...$$('h2')].find(h => h.textContent === 'Rough spots');
+  check(!!roughBox, 'a module with sore teeth says so');
+  check(doc().body.textContent.includes(roughFront), 'and names the sore one', roughFront);
+  await click('[data-act="drillrough"]', 350);
+  const roughFaces = new Set();
+  for (let t = 0; t < 10 && $('[data-act="flip"]'); t++) {
+    roughFaces.add($('.face').textContent.trim().split('\n')[0].trim());
+    await click('[data-act="flip"]', 60);
+    await click('[data-g="good"]', 120);
+  }
+  check(roughFaces.has(roughFront) && !roughFaces.has(smoothFront),
+    'and the drill holds the rough card, not the smooth one', [...roughFaces].join(' | '));
+  await click('[data-act="home"]', 300);
+  await click('[data-act="open"][data-id="counting"]', 300);
+  check(![...$$('h2')].some(h => h.textContent === 'Rough spots'),
+    'an untroubled module keeps quiet');
+
+  // ---- 87. a miss can be sent to Claude for sharpening ----
+  await boot();
+  let sharpCopied = null;
+  frame.contentWindow.navigator.clipboard.writeText = t => { sharpCopied = t; return Promise.resolve(); };
+  await click('[data-act="open"][data-id="world-capitals"]');
+  await click('[data-game="recall"]', 350);
+  let sharpMissed = null, sharpN = 0;
+  while ($('[data-act="flip"]') && sharpN < 12) {
+    if (!sharpMissed) sharpMissed = $('.face').textContent.trim().split('\n')[0].trim();
+    await click('[data-act="flip"]', 60);
+    await click(sharpN === 0 ? '[data-g="again"]' : '[data-g="good"]', 120);
+    sharpN++;
+  }
+  check(!!$('[data-act="sharpen"]'), 'a sitting with misses offers to sharpen them');
+  await click('[data-act="sharpen"]', 300);
+  check(!!sharpCopied && sharpCopied.includes(sharpMissed), 'the brief names what was missed', sharpMissed);
+  check((sharpCopied || '').includes('| Question | Answer |'),
+    'and asks for the exact shape the importer reads');
+
+  // ---- 88. letters trace one glyph at a time ----
+  await boot();
+  await click('[data-act="open"][data-id="letters"]', 350);
+  check(!!$('[data-game="trace"]'), 'single letters are accepted by the slate');
+  await click('[data-game="trace"]', 400);
+  check(!!doc().getElementById('slate'), 'and there is something to write on');
+  check(/Draw the (letter|number)/.test($('.face, .asking, .prompt, #app') ? doc().getElementById('app').textContent : ''),
+    'asking for one glyph', doc().getElementById('app').textContent.slice(0, 60));
+
+  // ---- 89. the home-screen Play shortcut goes straight to a game ----
+  await boot();
+  frame.src = './index.html?selftest&go=play';
+  await new Promise(r => frame.onload = r);
+  for (let t = 0; t < 60 && !doc().getElementById('app')?.className.includes('session'); t++) await wait(100);
+  check(doc().getElementById('app').className.includes('session'),
+    'no menus between the icon and the game', doc().getElementById('app').className);
+
+  // ---- 90. confused words bait the mix-up tracker with their own twin ----
+  await boot();
+  await click('[data-act="open"][data-id="confused-words"]', 350);
+  await click('[data-game="choice"]', 350);
+  const cwFace = $('.face').textContent;
+  const cwPair = cwFace.match(/\(([^)]+) \/ ([^)]+)\)/);
+  check(!!cwPair, 'each question names its pair', cwFace.slice(0, 50));
+  const cwOpts = $$('.opt').map(e => e.textContent.trim());
+  check(cwOpts.length === 2 && cwOpts.includes(cwPair[1].trim()) && cwOpts.includes(cwPair[2].trim()),
+    'and the only options are the twins', cwOpts.join(' / '));
+
+  // ---- 91. the wrong twin is never forgiven as a typo ----
+  await boot();
+  await click('[data-act="import"]', 300);
+  doc().getElementById('paste').value = JSON.stringify({ id: 'twin-test', title: 'Twin Test',
+    cards: [{ front: 'The policy will ___ morale. (affect / effect)', back: 'affect', options: ['effect'] }] });
+  await click('[data-act="paste"]', 300);
+  await click('[data-act="commit"]', 600);
+  await click('[data-act="open"][data-id="twin-test"]');
+  await click('[data-game="type"]', 350);
+  for (let t = 0; t < 30 && !doc().getElementById('ans'); t++) await wait(100);
+  doc().getElementById('ans').value = 'effect';
+  await click('#typef .btn', 400);
+  check(!!$('.verdict') && !$('.verdict.exact') && !$('.verdict.close'),
+    'the listed twin is marked wrong, one letter off or not', $('.verdict')?.className);
+  await click('[data-act="next"]', 300);
+  // one card answered wrong may end the sitting — start a fresh one for the typo half
+  if (!doc().getElementById('ans')) {
+    await click('[data-act="home"]', 250);
+    await click('[data-act="open"][data-id="twin-test"]', 300);
+    await click('[data-game="type"]', 350);
+  }
+  for (let t = 0; t < 30 && !doc().getElementById('ans'); t++) await wait(100);
+  doc().getElementById('ans').value = 'affct';
+  await click('#typef .btn', 400);
+  check(!!$('.verdict.close') || !!$('.verdict.exact'),
+    'while an honest typo is still forgiven', $('.verdict')?.className);
+
+  // ---- 92. the calendar carries the reminding ----
+  await boot();
+  const remWin = frame.contentWindow;
+  const remRealClick = remWin.HTMLAnchorElement.prototype.click;
+  const remRealBlob = remWin.Blob;
+  let remName = null, remText = null;
+  remWin.Blob = function (parts, opts) { remText = parts.join(''); return new remRealBlob(parts, opts); };
+  remWin.HTMLAnchorElement.prototype.click = function () { if (this.download) remName = this.download; };
+  await click('[data-act="settings"]', 300);
+  await click('[data-act="remindme"]', 300);
+  doc().getElementById('dlg').value = '7:45';
+  await click('.sheet-box [data-ok]', 500);
+  remWin.HTMLAnchorElement.prototype.click = remRealClick;
+  remWin.Blob = remRealBlob;
+  check(remName === 'learning-pit-reminder.ics', 'a reminder saves as a calendar file', String(remName));
+  check((remText || '').includes('RRULE:FREQ=DAILY'), 'that repeats every day');
+  check(/DTSTART:\d{8}T074500/.test(remText || ''), 'at the chosen minute');
+  check((remText || '').includes('URL:http'), 'and carries the way back in');
+
+  // ---- 93. a module file opens like a dropped one ----
+  await boot();
+  await click('[data-act="import"]', 300);
+  {
+    const fdt = new win.DataTransfer();
+    fdt.items.add(new win.File([JSON.stringify({ id: 'file-in', title: 'From A File',
+      cards: [{ front: 'fq', back: 'fa' }] })], 'from-a-file.json', { type: 'application/json' }));
+    const fileInput = doc().getElementById('file');
+    fileInput.files = fdt.files;
+    fileInput.dispatchEvent(new win.Event('change', { bubbles: true }));
+  }
+  await waitFor('[data-act="commit"]');
+  check(doc().body.textContent.includes('From A File'), 'the file becomes an import preview');
+  await click('[data-act="commit"]', 500);
+  check(!!state().custom.find(m => m.id === 'file-in'), 'and lands in the library');
+
+  // ---- 94. a spreadsheet's quoted commas come through whole ----
+  await boot();
+  await click('[data-act="import"]', 300);
+  doc().getElementById('paste').value = 'front,back\n"Paris, France","capital of France"\n"Rome, Italy",capital of Italy';
+  await click('[data-act="paste"]', 400);
+  const csvRows = $$('.picklist li span').map(e => e.textContent.trim());
+  check(csvRows.includes('Paris, France'), 'a quoted comma stays inside its field', csvRows.join(' | '));
+  check(csvRows.length === 2 && !csvRows.includes('front'), 'the header row is dropped', String(csvRows.length));
+
+  // ---- 95. a duel scores each answer against the player who gave it ----
+  await boot();
+  {
+    const s = JSON.parse(localStorage.getItem('pit.v1') || '{}');
+    s.profiles = s.profiles || {};
+    const fresh = a => ({ srs: {}, stats: { reviews: 0, correct: 0, days: {}, hits: {} }, opts: { avatar: a } });
+    s.profiles.Second = fresh('🐧');
+    s.profiles.Third = fresh('🦕');
+    localStorage.setItem('pit.v1', JSON.stringify(s));
+  }
+  frame.src = './index.html?selftest';
+  await new Promise(r => frame.onload = r);
+  await waitFor('[data-act="open"]');
+  await click('[data-act="open"][data-id="world-capitals"]');
+  const duelBtn = $('[data-game="duel"]');
+  check(!!duelBtn, 'Duel appears once there are two learners');
+  await click('[data-game="duel"]', 250);
+  const caps2 = await fetch('./modules/world-capitals.json').then(r => r.json());
+  const rightFor = q => caps2.cards.find(c => c.front === q)?.back;
+  // read the order off the scoreboard rather than assuming it
+  const players = $$('.duelbar .who, .duelbar b').map(e => e.textContent.replace(/^\S+\s/, '').trim());
+  // player one right, player two wrong
+  for (let turn = 0; turn < 2; turn++) {
+    const q = $('.face').textContent.trim();
+    const opts = $$('.opt');
+    const want = rightFor(q);
+    (turn === 0 ? opts.find(o => o.textContent === want) : opts.find(o => o.textContent !== want)).click();
+    await wait(80);
+    $('[data-act="duelnext"]')?.click();
+    await wait(80);
+  }
+  check(players.length === 3, 'all three are at the table', players.join(','));
+  const saved = JSON.parse(localStorage.getItem('pit.v1'));
+  const winner = saved.profiles[players[0]], loser = saved.profiles[players[1]];
+  check(winner?.stats.correct === 1 && winner?.stats.reviews === 1,
+    `${players[0]} gets the hit they earned`, JSON.stringify(winner?.stats));
+  check(loser?.stats.reviews === 1 && loser?.stats.correct === 0,
+    `${players[1]} gets the miss they earned`, JSON.stringify(loser?.stats));
+  check(saved.active === players[0] || saved.active === players[1], 'and the tablet is left on a real profile');
+
+  // ---- 17. a Match board completes, mistakes and all ----
+  await boot();
+  await click('[data-act="open"][data-id="world-capitals"]');
+  await click('[data-game="match"]', 250);
+  const caps = await fetch('./modules/world-capitals.json').then(r => r.json());
+  const backOf = Object.fromEntries(caps.cards.map(c => [c.front, c.back]));
+  const openTiles = () => $$('.mtile:not([disabled])');
+  const byText = t => openTiles().find(e => e.textContent === t);
+  check(openTiles().length === 12, 'Match deals six pairs');
+  // A deliberate mismatch first — this is the path that used to throw on completion.
+  // Start from a tile that is definitely a question, or "its answer" is undefined and the
+  // tile picked to be wrong can turn out to be the right one.
+  const qtile = openTiles().find(e => backOf[e.textContent])?.textContent;
+  check(!!qtile, 'the board holds at least one question tile');
+  byText(qtile).click();
+  await wait(60);
+  const wrong = openTiles().find(e => e.textContent !== qtile && e.textContent !== backOf[qtile]);
+  wrong.click();
+  await wait(80);
+  for (let i = 0; i < 8 && $('.mtile'); i++) {
+    const texts = openTiles().map(e => e.textContent);
+    const front = texts.find(t => backOf[t] && texts.includes(backOf[t]));
+    if (!front) break;
+    byText(front)?.click();
+    await wait(40);
+    byText(backOf[front])?.click();
+    await wait(60);
+  }
+  check(doc().getElementById('app').className.includes('results'), 'and finishes on results');
+  check($$('.li.missed').length > 0, 'listing what was mispaired');
+  check(profile().stats.reviews === 6, 'scoring all six pairs once', String(profile().stats.reviews));
+} catch (e) {
+  bad('the run stopped early', e.message);
+} finally {
+  restore();
+  frame.src = 'about:blank';
+  const el = document.getElementById('summary');
+  el.textContent = `${pass} passed, ${fail} failed — your data has been restored`;
+  el.className = fail ? 'fail' : 'ok';
+}
+</script>

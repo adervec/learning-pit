@@ -1,0 +1,106 @@
+{
+  "id": "llm-literacy",
+  "title": "How Language Models Work",
+  "description": "The vocabulary you need to read about, argue about and use a language model well.",
+  "icon": "🧮",
+  "tags": [
+    "meta",
+    "learning"
+  ],
+  "cards": [
+    {
+      "front": "The unit a language model actually reads and writes — usually a word piece, not a word",
+      "back": "A token",
+      "note": "Roughly ¾ of a word in English on average; rarer words and other scripts cost more tokens."
+    },
+    {
+      "front": "The total amount of text a model can attend to at once, prompt and reply together",
+      "back": "The context window",
+      "note": "Anything outside it does not exist for the model: it is not forgotten, it was never there."
+    },
+    {
+      "front": "A confident statement that is simply not true, produced because it was plausible text",
+      "back": "A hallucination",
+      "note": "The model optimises for likely continuations, not for verified ones, so plausibility is the failure mode."
+    },
+    {
+      "front": "Giving a model examples of the task inside the prompt instead of retraining it",
+      "back": "Few-shot prompting",
+      "note": "Zero-shot is asking with no examples at all; both change behaviour without changing weights."
+    },
+    {
+      "front": "Fetching relevant documents and putting them in the prompt before answering",
+      "back": "Retrieval-augmented generation (RAG)",
+      "note": "It grounds an answer in sources the model did not memorise, and lets you cite them."
+    },
+    {
+      "front": "The setting that controls how much randomness there is in the next-token choice",
+      "back": "Temperature",
+      "note": "Near zero is repeatable and flat; higher is more varied and more likely to wander."
+    },
+    {
+      "front": "Continuing to train a finished model on your own examples to specialise it",
+      "back": "Fine-tuning"
+    },
+    {
+      "front": "Training that uses people's preferences between answers as the reward signal",
+      "back": "RLHF — reinforcement learning from human feedback"
+    },
+    {
+      "front": "The architecture behind essentially every modern language model",
+      "back": "The transformer",
+      "note": "Its trick is attention: every token can look at every other token in the window."
+    },
+    {
+      "front": "The mechanism that lets a model weigh which earlier tokens matter for the next one",
+      "back": "Attention"
+    },
+    {
+      "front": "Asking a model to work through the steps before giving the answer",
+      "back": "Chain of thought",
+      "note": "It measurably helps on multi-step problems — the intermediate tokens are where the work happens."
+    },
+    {
+      "front": "Text placed above the conversation that sets the model's role and rules",
+      "back": "The system prompt"
+    },
+    {
+      "front": "Input crafted to make a model ignore its instructions and follow the input instead",
+      "back": "Prompt injection",
+      "note": "The reason anything a model reads — a web page, a file, an email — is data, never orders."
+    },
+    {
+      "front": "A number vector that places a piece of text near others with similar meaning",
+      "back": "An embedding",
+      "note": "Semantic search is nearest-neighbour lookup over embeddings."
+    },
+    {
+      "front": "The date after which a model has seen nothing at all",
+      "back": "The training cutoff",
+      "note": "It is why a model can be fluent about a topic and still be a year out of date on it."
+    },
+    {
+      "front": "Giving a model tools it can call — search, code, a database — instead of answering from memory",
+      "back": "Tool use (function calling)"
+    },
+    {
+      "front": "Taking the next token only from the smallest set whose probabilities add up to a threshold",
+      "back": "Top-p (nucleus) sampling",
+      "note": "It cuts the long tail of unlikely tokens without fixing the count, unlike top-k."
+    },
+    {
+      "front": "The rough rule that bigger models trained on more data get predictably better",
+      "back": "Scaling laws"
+    },
+    {
+      "front": "Why a model miscounts how many times a given character appears in a word",
+      "back": "It sees tokens, not letters",
+      "note": "The word may arrive as one or two chunks, with no spelling inside them."
+    },
+    {
+      "front": "The safest assumption about anything a model tells you that matters",
+      "back": "Check it against a source",
+      "note": "Fluency is not evidence. The model is a strong first draft and a poor last word."
+    }
+  ]
+}

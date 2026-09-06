@@ -1,0 +1,69 @@
+{
+  "id": "solar-system",
+  "title": "The Solar System",
+  "description": "Planets, moons and the big rocks in between.",
+  "icon": "🪐",
+  "tags": [
+    "space",
+    "kids"
+  ],
+  "cards": [
+    {
+      "front": "Which planet is closest to the Sun?",
+      "back": "Mercury"
+    },
+    {
+      "front": "Which planet is the hottest?",
+      "back": "Venus",
+      "hint": "Its thick clouds trap the heat"
+    },
+    {
+      "front": "Which planet do we live on?",
+      "back": "Earth"
+    },
+    {
+      "front": "Which planet is called the Red Planet?",
+      "back": "Mars"
+    },
+    {
+      "front": "Which planet is the biggest?",
+      "back": "Jupiter"
+    },
+    {
+      "front": "Which planet has the brightest rings?",
+      "back": "Saturn"
+    },
+    {
+      "front": "Which planet spins on its side?",
+      "back": "Uranus"
+    },
+    {
+      "front": "Which planet is the farthest from the Sun?",
+      "back": "Neptune"
+    },
+    {
+      "front": "What is the Sun made of?",
+      "back": "Mostly hydrogen and helium gas"
+    },
+    {
+      "front": "What do we call a rock that burns up in the sky?",
+      "back": "A meteor (a shooting star)"
+    },
+    {
+      "front": "How many moons does Earth have?",
+      "back": "One"
+    },
+    {
+      "front": "What is the belt of rocks between Mars and Jupiter?",
+      "back": "The asteroid belt"
+    },
+    {
+      "front": "How long does Earth take to go around the Sun?",
+      "back": "One year (365 days)"
+    },
+    {
+      "front": "Why does the Moon change shape each night?",
+      "back": "We see different amounts of its sunlit half"
+    }
+  ]
+}

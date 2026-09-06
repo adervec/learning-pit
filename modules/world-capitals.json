@@ -1,0 +1,160 @@
+{
+  "id": "world-capitals",
+  "title": "World Capitals",
+  "description": "Country to capital city.",
+  "icon": "🗺️",
+  "tags": [
+    "geography",
+    "kids"
+  ],
+  "cards": [
+    {
+      "front": "Japan",
+      "back": "Tokyo"
+    },
+    {
+      "front": "Australia",
+      "back": "Canberra",
+      "hint": "Not Sydney"
+    },
+    {
+      "front": "Canada",
+      "back": "Ottawa",
+      "hint": "Not Toronto"
+    },
+    {
+      "front": "Brazil",
+      "back": "Brasília",
+      "hint": "Not Rio"
+    },
+    {
+      "front": "Egypt",
+      "back": "Cairo"
+    },
+    {
+      "front": "Kenya",
+      "back": "Nairobi"
+    },
+    {
+      "front": "Morocco",
+      "back": "Rabat",
+      "hint": "Not Casablanca"
+    },
+    {
+      "front": "Nigeria",
+      "back": "Abuja",
+      "hint": "Not Lagos"
+    },
+    {
+      "front": "South Africa",
+      "back": "Pretoria (executive)"
+    },
+    {
+      "front": "India",
+      "back": "New Delhi"
+    },
+    {
+      "front": "China",
+      "back": "Beijing"
+    },
+    {
+      "front": "South Korea",
+      "back": "Seoul"
+    },
+    {
+      "front": "Vietnam",
+      "back": "Hanoi"
+    },
+    {
+      "front": "Indonesia",
+      "back": "Jakarta"
+    },
+    {
+      "front": "Turkey",
+      "back": "Ankara",
+      "hint": "Not Istanbul"
+    },
+    {
+      "front": "Portugal",
+      "back": "Lisbon"
+    },
+    {
+      "front": "Spain",
+      "back": "Madrid"
+    },
+    {
+      "front": "France",
+      "back": "Paris"
+    },
+    {
+      "front": "Germany",
+      "back": "Berlin"
+    },
+    {
+      "front": "Poland",
+      "back": "Warsaw"
+    },
+    {
+      "front": "Slovenia",
+      "back": "Ljubljana"
+    },
+    {
+      "front": "Croatia",
+      "back": "Zagreb"
+    },
+    {
+      "front": "Austria",
+      "back": "Vienna"
+    },
+    {
+      "front": "Switzerland",
+      "back": "Bern",
+      "hint": "Not Zurich"
+    },
+    {
+      "front": "Norway",
+      "back": "Oslo"
+    },
+    {
+      "front": "Sweden",
+      "back": "Stockholm"
+    },
+    {
+      "front": "Finland",
+      "back": "Helsinki"
+    },
+    {
+      "front": "Iceland",
+      "back": "Reykjavík"
+    },
+    {
+      "front": "Ireland",
+      "back": "Dublin"
+    },
+    {
+      "front": "Greece",
+      "back": "Athens"
+    },
+    {
+      "front": "Mexico",
+      "back": "Mexico City"
+    },
+    {
+      "front": "Argentina",
+      "back": "Buenos Aires"
+    },
+    {
+      "front": "Chile",
+      "back": "Santiago"
+    },
+    {
+      "front": "Peru",
+      "back": "Lima"
+    },
+    {
+      "front": "New Zealand",
+      "back": "Wellington",
+      "hint": "Not Auckland"
+    }
+  ]
+}

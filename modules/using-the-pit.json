@@ -1,0 +1,98 @@
+{
+  "id": "using-the-pit",
+  "title": "Using the Pit",
+  "description": "The app, taught the way the app teaches everything else.",
+  "icon": "🕳️",
+  "tags": [
+    "meta"
+  ],
+  "cards": [
+    {
+      "front": "What happens to a card you get right?",
+      "back": "It comes back later — a day, then three, then further each time",
+      "note": "Spacing the reviews out just before you forget is the whole engine."
+    },
+    {
+      "front": "What happens to a card you get wrong?",
+      "back": "It comes back inside the same sitting",
+      "alt": [
+        "it repeats",
+        "you see it again"
+      ]
+    },
+    {
+      "front": "What does ⏻ park it do to a card?",
+      "back": "Takes it out of rotation until you let it back in",
+      "note": "From the editor, Resume gives it a clean slate."
+    },
+    {
+      "front": "What is ★ star it for?",
+      "back": "Marking a card to come back to, whatever the schedule thinks",
+      "note": "The home screen collects starred cards into one drill."
+    },
+    {
+      "front": "What does a card parked by itself after eight misses mean?",
+      "back": "The card is wrong, not you — rewrite it",
+      "note": "A card that asks two things, or gives itself away, fails like this."
+    },
+    {
+      "front": "Why does the exam mode not touch your streak?",
+      "back": "An exam measures; only practice trains",
+      "alt": [
+        "it only measures",
+        "exams are for checking"
+      ]
+    },
+    {
+      "front": "Where does a note you add after missing a card show up?",
+      "back": "Under the answer, every time you answer that card",
+      "hint": "The why, not the what"
+    },
+    {
+      "front": "What does mixing two modules into one sitting do for you?",
+      "back": "Interleaving — harder in the moment, better remembered",
+      "note": "The Learning Science module has the study behind this."
+    },
+    {
+      "front": "What is the fastest way to add one fact you just learned?",
+      "back": "Quick card, on the home screen",
+      "alt": [
+        "quick card"
+      ]
+    },
+    {
+      "front": "How do you turn a Claude answer into a module?",
+      "back": "Paste it into Import — tables, Q&A lines and lists all work",
+      "note": "A paste with several ## headings becomes several modules."
+    },
+    {
+      "front": "What earns the certificate on a module?",
+      "back": "Every card resting at once",
+      "hint": "🎓"
+    },
+    {
+      "front": "What breaks a streak?",
+      "back": "Missing two days — one is forgiven once a week",
+      "note": "A rest day exists so a busy Tuesday doesn't erase a habit."
+    },
+    {
+      "front": "What happens when you mix the same two cards up twice?",
+      "back": "They appear on progress as Often confused, with a pair drill one tap away",
+      "note": "One mix-up is noise; the same pair again is a diagnosis."
+    },
+    {
+      "front": "What does 'Spread it over the week' do to a huge due pile?",
+      "back": "Deals it out evenly over seven days, oldest first",
+      "note": "The returned-from-holiday button. Undo puts every card back."
+    },
+    {
+      "front": "Where do the cards you missed go after a sitting?",
+      "back": "Into a one-tap drill, or to Claude as a brief for sharper cards",
+      "note": "A card missed repeatedly is usually the card's fault — rewrite it."
+    },
+    {
+      "front": "How do you get reminded to study without the app nagging you?",
+      "back": "Settings makes a daily calendar event — the calendar does the reminding"
+    }
+  ]
+}

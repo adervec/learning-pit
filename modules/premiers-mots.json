@@ -1,0 +1,33 @@
+{
+  "id": "premiers-mots",
+  "title": "Premiers Mots",
+  "description": "Twenty first words of French, spoken by a French voice.",
+  "icon": "🥐",
+  "tags": [
+    "language",
+    "words"
+  ],
+  "lang": "fr",
+  "cards": [
+    { "front": "the cat", "back": "le chat", "alt": ["chat"] },
+    { "front": "the dog", "back": "le chien", "alt": ["chien"] },
+    { "front": "the house", "back": "la maison", "alt": ["maison"] },
+    { "front": "the water", "back": "l'eau", "alt": ["eau"] },
+    { "front": "the bread", "back": "le pain", "alt": ["pain"] },
+    { "front": "the milk", "back": "le lait", "alt": ["lait"] },
+    { "front": "the apple", "back": "la pomme", "alt": ["pomme"] },
+    { "front": "the book", "back": "le livre", "alt": ["livre"] },
+    { "front": "the sun", "back": "le soleil", "alt": ["soleil"] },
+    { "front": "the moon", "back": "la lune", "alt": ["lune"] },
+    { "front": "hello", "back": "bonjour" },
+    { "front": "goodbye", "back": "au revoir", "alt": ["aurevoir"] },
+    { "front": "please", "back": "s'il vous plaît", "alt": ["s'il te plaît", "sil vous plait"] },
+    { "front": "thank you", "back": "merci" },
+    { "front": "yes", "back": "oui" },
+    { "front": "no", "back": "non" },
+    { "front": "one", "back": "un", "alt": ["une"] },
+    { "front": "two", "back": "deux" },
+    { "front": "three", "back": "trois" },
+    { "front": "the child", "back": "l'enfant", "alt": ["enfant"] }
+  ]
+}

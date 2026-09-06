@@ -1,0 +1,120 @@
+{
+  "id": "cognitive-biases",
+  "title": "Cognitive Biases",
+  "description": "Name the way the mind goes wrong, and why it feels right at the time.",
+  "icon": "🪞",
+  "tags": [
+    "reasoning",
+    "meta"
+  ],
+  "cards": [
+    {
+      "front": "Looking for evidence that fits what you already believe, and not for evidence against it",
+      "back": "Confirmation bias",
+      "note": "The fix is not \"try harder to be fair\" — it is to go looking for the disconfirming case on purpose."
+    },
+    {
+      "front": "Judging a decision by how it turned out rather than by what was known when it was made",
+      "back": "Outcome bias",
+      "hint": "A good bet can still lose",
+      "note": "Poker players call the loose version of this \"resulting\"."
+    },
+    {
+      "front": "The first number you hear pulls every later estimate towards it",
+      "back": "Anchoring",
+      "note": "It works even when the anchor is obviously arbitrary, which is why opening offers matter."
+    },
+    {
+      "front": "Judging how likely something is by how easily an example comes to mind",
+      "back": "Availability heuristic",
+      "note": "Vivid, recent and frightening events are recalled easily, so they feel more common than they are."
+    },
+    {
+      "front": "Sticking with something because of what you have already spent on it",
+      "back": "Sunk cost fallacy",
+      "note": "The money is gone either way; only the future costs and benefits should count."
+    },
+    {
+      "front": "Believing, after the fact, that you knew it all along",
+      "back": "Hindsight bias",
+      "note": "It quietly destroys the record of what was actually uncertain, so no lesson gets learned."
+    },
+    {
+      "front": "Someone good at one thing is assumed to be good at unrelated things",
+      "back": "Halo effect"
+    },
+    {
+      "front": "Only studying the things that made it through, and drawing conclusions from them",
+      "back": "Survivorship bias",
+      "hint": "The planes that came back",
+      "note": "Abraham Wald's answer: armour the places the returning bombers were *not* hit."
+    },
+    {
+      "front": "Assuming other people share your knowledge, tastes or beliefs more than they do",
+      "back": "False consensus effect"
+    },
+    {
+      "front": "Explaining someone else's behaviour by their character and your own by your circumstances",
+      "back": "Fundamental attribution error",
+      "note": "They are late because they are careless; you are late because the traffic was bad."
+    },
+    {
+      "front": "Being far more confident in your judgement than your accuracy justifies",
+      "back": "Overconfidence effect",
+      "note": "Asking for a range you are 90% sure of, then checking how often it contained the answer, is the standard calibration test."
+    },
+    {
+      "front": "Preferring to avoid a loss more strongly than to make an equal gain",
+      "back": "Loss aversion",
+      "note": "Roughly two to one in most experiments, which is why framing something as a loss changes behaviour."
+    },
+    {
+      "front": "Knowing something so well that you cannot imagine not knowing it",
+      "back": "The curse of knowledge",
+      "note": "It is the reason experts write bad instructions."
+    },
+    {
+      "front": "Preferring the current state simply because it is the current state",
+      "back": "Status quo bias"
+    },
+    {
+      "front": "Rating a whole experience by its peak and its ending rather than its average",
+      "back": "Peak–end rule",
+      "note": "Kahneman's colonoscopy studies: a longer procedure with a gentler ending was remembered as better."
+    },
+    {
+      "front": "Continuing to believe a claim after the evidence for it has been retracted",
+      "back": "Continued influence effect",
+      "note": "A correction works better if it replaces the story rather than just denying it."
+    },
+    {
+      "front": "Treating money differently depending on which pot you have put it in",
+      "back": "Mental accounting",
+      "note": "A £50 refund is spent more freely than £50 of salary, though the money is identical."
+    },
+    {
+      "front": "The least skilled are the least able to see that they are unskilled",
+      "back": "Dunning–Kruger effect",
+      "note": "The same lack of knowledge that causes the mistakes also hides them."
+    },
+    {
+      "front": "Reading meaning into random noise — a face in the clouds, a trend in a coin toss",
+      "back": "Apophenia",
+      "hint": "Pattern where there is none"
+    },
+    {
+      "front": "Wanting something more because it is scarce, or because it was hard to get",
+      "back": "Scarcity effect"
+    },
+    {
+      "front": "Judging a group by the most extreme members you happened to notice",
+      "back": "Base rate neglect",
+      "hint": "Forgetting how common the thing actually is",
+      "note": "The classic case: a test that is 99% accurate for a disease one person in ten thousand has still gives mostly false positives."
+    },
+    {
+      "front": "Deciding what is true by what most people around you seem to think",
+      "back": "Bandwagon effect"
+    }
+  ]
+}

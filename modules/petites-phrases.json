@@ -1,0 +1,117 @@
+{
+ "id": "petites-phrases",
+ "title": "Petites Phrases",
+ "description": "Sixteen small French sentences you can actually say, read by a French voice.",
+ "icon": "🗨️",
+ "tags": [
+  "language",
+  "phrases"
+ ],
+ "lang": "fr",
+ "cards": [
+  {
+   "front": "Hello, how are you?",
+   "back": "Bonjour, ça va ?",
+   "alt": [
+    "bonjour ca va",
+    "ca va"
+   ]
+  },
+  {
+   "front": "My name is Nia.",
+   "back": "Je m'appelle Nia.",
+   "alt": [
+    "je mappelle nia"
+   ]
+  },
+  {
+   "front": "I am seven years old.",
+   "back": "J'ai sept ans.",
+   "alt": [
+    "jai sept ans"
+   ]
+  },
+  {
+   "front": "I would like some bread, please.",
+   "back": "Je voudrais du pain, s'il vous plaît.",
+   "alt": [
+    "je voudrais du pain sil vous plait"
+   ]
+  },
+  {
+   "front": "Where are the toilets?",
+   "back": "Où sont les toilettes ?",
+   "alt": [
+    "ou sont les toilettes"
+   ]
+  },
+  {
+   "front": "I don't understand.",
+   "back": "Je ne comprends pas."
+  },
+  {
+   "front": "Can you speak more slowly?",
+   "back": "Pouvez-vous parler plus lentement ?",
+   "alt": [
+    "pouvez vous parler plus lentement"
+   ]
+  },
+  {
+   "front": "I'm hungry.",
+   "back": "J'ai faim.",
+   "alt": [
+    "jai faim"
+   ]
+  },
+  {
+   "front": "I'm thirsty.",
+   "back": "J'ai soif.",
+   "alt": [
+    "jai soif"
+   ]
+  },
+  {
+   "front": "How much does it cost?",
+   "back": "Ça coûte combien ?",
+   "alt": [
+    "ca coute combien"
+   ]
+  },
+  {
+   "front": "I love it!",
+   "back": "J'adore !",
+   "alt": [
+    "jadore"
+   ]
+  },
+  {
+   "front": "See you tomorrow.",
+   "back": "À demain.",
+   "alt": [
+    "a demain"
+   ]
+  },
+  {
+   "front": "Excuse me.",
+   "back": "Excusez-moi.",
+   "alt": [
+    "excusez moi"
+   ]
+  },
+  {
+   "front": "The cat is sleeping.",
+   "back": "Le chat dort."
+  },
+  {
+   "front": "It's raining.",
+   "back": "Il pleut."
+  },
+  {
+   "front": "Where is the station?",
+   "back": "Où est la gare ?",
+   "alt": [
+    "ou est la gare"
+   ]
+  }
+ ]
+}

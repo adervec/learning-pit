@@ -1,0 +1,192 @@
+{
+ "id": "confused-words",
+ "title": "Commonly Confused Words",
+ "description": "Word pairs that blur together, each asked in the sentence that settles it.",
+ "icon": "🔀",
+ "tags": [
+  "words",
+  "language"
+ ],
+ "cards": [
+  {
+   "front": "The new policy will ___ morale. (affect / effect)",
+   "back": "affect",
+   "options": [
+    "effect"
+   ],
+   "note": "Affect is the verb, effect is the noun — the policy affects morale and has an effect on it."
+  },
+  {
+   "front": "One immediate ___ of the change was confusion. (affect / effect)",
+   "back": "effect",
+   "options": [
+    "affect"
+   ]
+  },
+  {
+   "front": "The dog wagged ___ tail. (its / it's)",
+   "back": "its",
+   "options": [
+    "it's"
+   ],
+   "note": "It's always means \"it is\" or \"it has\". The possessive its has no apostrophe."
+  },
+  {
+   "front": "___ going to rain. (its / it's)",
+   "back": "it's",
+   "options": [
+    "its"
+   ]
+  },
+  {
+   "front": "The ___ of the school greeted us. (principal / principle)",
+   "back": "principal",
+   "options": [
+    "principle"
+   ],
+   "note": "The principal is your pal (a person, or the main thing); a principle is a rule."
+  },
+  {
+   "front": "Honesty is a matter of ___. (principal / principle)",
+   "back": "principle",
+   "options": [
+    "principal"
+   ]
+  },
+  {
+   "front": "The medicine had no ___ on the fever. (affect / effect)",
+   "back": "effect",
+   "options": [
+    "affect"
+   ]
+  },
+  {
+   "front": "___ cars on the road. (fewer / less)",
+   "back": "fewer",
+   "options": [
+    "less"
+   ],
+   "note": "Fewer counts things you can count; less measures what you cannot — fewer cars, less traffic."
+  },
+  {
+   "front": "___ noise after midnight. (fewer / less)",
+   "back": "less",
+   "options": [
+    "fewer"
+   ]
+  },
+  {
+   "front": "The award will go to ___ deserves it. (whoever / whomever)",
+   "back": "whoever",
+   "options": [
+    "whomever"
+   ],
+   "note": "The clause needs a subject: whoever deserves it. Whomever is only ever an object."
+  },
+  {
+   "front": "Please ___ the invitation. (accept / except)",
+   "back": "accept",
+   "options": [
+    "except"
+   ],
+   "note": "Accept is to receive; except is to leave out."
+  },
+  {
+   "front": "Everyone came ___ Nia. (accept / except)",
+   "back": "except",
+   "options": [
+    "accept"
+   ]
+  },
+  {
+   "front": "The climbers began their ___ of the peak. (ascent / assent)",
+   "back": "ascent",
+   "options": [
+    "assent"
+   ],
+   "note": "Ascent is the climb; assent is the agreement."
+  },
+  {
+   "front": "She nodded her ___. (ascent / assent)",
+   "back": "assent",
+   "options": [
+    "ascent"
+   ]
+  },
+  {
+   "front": "The road runs ___ the river. (past / passed)",
+   "back": "past",
+   "options": [
+    "passed"
+   ],
+   "note": "Passed is only ever the verb pass in the past tense; everything else is past."
+  },
+  {
+   "front": "The runner ___ the finish line. (past / passed)",
+   "back": "passed",
+   "options": [
+    "past"
+   ]
+  },
+  {
+   "front": "Take my ___: study early. (advice / advise)",
+   "back": "advice",
+   "options": [
+    "advise"
+   ],
+   "note": "Advice is the noun (say -ice like mice); advise is the verb (say -ize)."
+  },
+  {
+   "front": "I would ___ you to back up your work. (advice / advise)",
+   "back": "advise",
+   "options": [
+    "advice"
+   ]
+  },
+  {
+   "front": "The data ___ a trend, whatever we conclude. (imply / infer)",
+   "back": "imply",
+   "options": [
+    "infer"
+   ],
+   "note": "The speaker or the data imply; the listener infers."
+  },
+  {
+   "front": "From her tone, I ___ she disagreed. (imply / infer)",
+   "back": "infer",
+   "options": [
+    "imply"
+   ]
+  },
+  {
+   "front": "She is taller ___ me. (then / than)",
+   "back": "than",
+   "options": [
+    "then"
+   ],
+   "note": "Than compares; then orders events in time."
+  },
+  {
+   "front": "Finish this, ___ rest. (then / than)",
+   "back": "then",
+   "options": [
+    "than"
+   ]
+  },
+  {
+   "front": "The ship was ___ in the storm. (stationary / stationery)",
+   "back": "stationary",
+   "options": [
+    "stationery"
+   ],
+   "note": "Stationary stands still (a is for at rest); stationery is paper (e is for envelope)."
+  },
+  {
+   "front": "The shop sells ___. (stationary / stationery)",
+   "back": "stationery",
+   "options": [
+    "stationary"
+   ]
+  }
+ ]
+}

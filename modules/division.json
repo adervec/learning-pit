@@ -1,0 +1,156 @@
+{
+ "id": "division",
+ "title": "Division",
+ "description": "The times tables asked backwards, tapped in on the number pad.",
+ "icon": "➗",
+ "tags": [
+  "kids",
+  "maths"
+ ],
+ "cards": [
+  {
+   "front": "4 ÷ 2 = ?",
+   "back": "2"
+  },
+  {
+   "front": "6 ÷ 2 = ?",
+   "back": "3"
+  },
+  {
+   "front": "8 ÷ 2 = ?",
+   "back": "4"
+  },
+  {
+   "front": "12 ÷ 2 = ?",
+   "back": "6"
+  },
+  {
+   "front": "14 ÷ 2 = ?",
+   "back": "7"
+  },
+  {
+   "front": "16 ÷ 2 = ?",
+   "back": "8"
+  },
+  {
+   "front": "18 ÷ 2 = ?",
+   "back": "9"
+  },
+  {
+   "front": "6 ÷ 3 = ?",
+   "back": "2"
+  },
+  {
+   "front": "9 ÷ 3 = ?",
+   "back": "3"
+  },
+  {
+   "front": "12 ÷ 3 = ?",
+   "back": "4"
+  },
+  {
+   "front": "18 ÷ 3 = ?",
+   "back": "6"
+  },
+  {
+   "front": "21 ÷ 3 = ?",
+   "back": "7"
+  },
+  {
+   "front": "24 ÷ 3 = ?",
+   "back": "8"
+  },
+  {
+   "front": "27 ÷ 3 = ?",
+   "back": "9"
+  },
+  {
+   "front": "8 ÷ 4 = ?",
+   "back": "2"
+  },
+  {
+   "front": "12 ÷ 4 = ?",
+   "back": "3"
+  },
+  {
+   "front": "16 ÷ 4 = ?",
+   "back": "4"
+  },
+  {
+   "front": "24 ÷ 4 = ?",
+   "back": "6"
+  },
+  {
+   "front": "28 ÷ 4 = ?",
+   "back": "7"
+  },
+  {
+   "front": "32 ÷ 4 = ?",
+   "back": "8"
+  },
+  {
+   "front": "36 ÷ 4 = ?",
+   "back": "9"
+  },
+  {
+   "front": "10 ÷ 5 = ?",
+   "back": "2"
+  },
+  {
+   "front": "15 ÷ 5 = ?",
+   "back": "3"
+  },
+  {
+   "front": "20 ÷ 5 = ?",
+   "back": "4"
+  },
+  {
+   "front": "30 ÷ 5 = ?",
+   "back": "6"
+  },
+  {
+   "front": "35 ÷ 5 = ?",
+   "back": "7"
+  },
+  {
+   "front": "40 ÷ 5 = ?",
+   "back": "8"
+  },
+  {
+   "front": "45 ÷ 5 = ?",
+   "back": "9"
+  },
+  {
+   "front": "12 ÷ 6 = ?",
+   "back": "2"
+  },
+  {
+   "front": "18 ÷ 6 = ?",
+   "back": "3"
+  },
+  {
+   "front": "24 ÷ 6 = ?",
+   "back": "4"
+  },
+  {
+   "front": "36 ÷ 6 = ?",
+   "back": "6"
+  },
+  {
+   "front": "42 ÷ 6 = ?",
+   "back": "7"
+  },
+  {
+   "front": "48 ÷ 6 = ?",
+   "back": "8"
+  },
+  {
+   "front": "54 ÷ 6 = ?",
+   "back": "9"
+  },
+  {
+   "front": "14 ÷ 7 = ?",
+   "back": "2"
+  }
+ ]
+}

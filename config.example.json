@@ -1,0 +1,4 @@
+{
+  "_comment": "Copy to config.json to let every device that loads this deployment sign in without being told the client ID. Optional — Settings takes one too.",
+  "clientId": "xxxxxxxx.apps.googleusercontent.com"
+}

@@ -1,0 +1,160 @@
+{
+ "id": "days-and-months",
+ "title": "Days & Months",
+ "description": "What comes next — the week and the year in order.",
+ "icon": "📅",
+ "tags": [
+  "kids",
+  "time"
+ ],
+ "cards": [
+  {
+   "front": "What day comes after Monday?",
+   "back": "Tuesday",
+   "options": [
+    "Wednesday"
+   ]
+  },
+  {
+   "front": "What day comes after Tuesday?",
+   "back": "Wednesday",
+   "options": [
+    "Thursday"
+   ]
+  },
+  {
+   "front": "What day comes after Wednesday?",
+   "back": "Thursday",
+   "options": [
+    "Friday"
+   ]
+  },
+  {
+   "front": "What day comes after Thursday?",
+   "back": "Friday",
+   "options": [
+    "Saturday"
+   ]
+  },
+  {
+   "front": "What day comes after Friday?",
+   "back": "Saturday",
+   "options": [
+    "Sunday"
+   ]
+  },
+  {
+   "front": "What day comes after Saturday?",
+   "back": "Sunday",
+   "options": [
+    "Monday"
+   ]
+  },
+  {
+   "front": "What day comes after Sunday?",
+   "back": "Monday",
+   "options": [
+    "Tuesday"
+   ]
+  },
+  {
+   "front": "What month comes after January?",
+   "back": "February",
+   "options": [
+    "March"
+   ]
+  },
+  {
+   "front": "What month comes after February?",
+   "back": "March",
+   "options": [
+    "April"
+   ]
+  },
+  {
+   "front": "What month comes after March?",
+   "back": "April",
+   "options": [
+    "May"
+   ]
+  },
+  {
+   "front": "What month comes after April?",
+   "back": "May",
+   "options": [
+    "June"
+   ]
+  },
+  {
+   "front": "What month comes after May?",
+   "back": "June",
+   "options": [
+    "July"
+   ]
+  },
+  {
+   "front": "What month comes after June?",
+   "back": "July",
+   "options": [
+    "August"
+   ]
+  },
+  {
+   "front": "What month comes after July?",
+   "back": "August",
+   "options": [
+    "September"
+   ]
+  },
+  {
+   "front": "What month comes after August?",
+   "back": "September",
+   "options": [
+    "October"
+   ]
+  },
+  {
+   "front": "What month comes after September?",
+   "back": "October",
+   "options": [
+    "November"
+   ]
+  },
+  {
+   "front": "What month comes after October?",
+   "back": "November",
+   "options": [
+    "December"
+   ]
+  },
+  {
+   "front": "What month comes after November?",
+   "back": "December",
+   "options": [
+    "January"
+   ]
+  },
+  {
+   "front": "What month comes after December?",
+   "back": "January",
+   "options": [
+    "February"
+   ]
+  },
+  {
+   "front": "How many days are in a week?",
+   "back": "7"
+  },
+  {
+   "front": "How many months are in a year?",
+   "back": "12"
+  },
+  {
+   "front": "Which day comes first in the weekend?",
+   "back": "Saturday",
+   "options": [
+    "Sunday"
+   ]
+  }
+ ]
+}

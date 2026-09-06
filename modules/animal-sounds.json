@@ -1,0 +1,76 @@
+{
+ "id": "animal-sounds",
+ "title": "Animal Sounds",
+ "description": "Which animal makes that noise? Listen and answer.",
+ "icon": "🐄",
+ "tags": [
+  "kids",
+  "animals"
+ ],
+ "cards": [
+  {
+   "front": "Which animal says moo?",
+   "back": "cow"
+  },
+  {
+   "front": "Which animal says woof?",
+   "back": "dog"
+  },
+  {
+   "front": "Which animal says meow?",
+   "back": "cat"
+  },
+  {
+   "front": "Which animal says baa?",
+   "back": "sheep"
+  },
+  {
+   "front": "Which animal says oink?",
+   "back": "pig"
+  },
+  {
+   "front": "Which animal says quack?",
+   "back": "duck"
+  },
+  {
+   "front": "Which animal says neigh?",
+   "back": "horse"
+  },
+  {
+   "front": "Which animal says cluck?",
+   "back": "hen"
+  },
+  {
+   "front": "Which animal says roar?",
+   "back": "lion"
+  },
+  {
+   "front": "Which animal says hoot?",
+   "back": "owl"
+  },
+  {
+   "front": "Which animal says hiss?",
+   "back": "snake"
+  },
+  {
+   "front": "Which animal says ribbit?",
+   "back": "frog"
+  },
+  {
+   "front": "Which animal says buzz?",
+   "back": "bee"
+  },
+  {
+   "front": "Which animal says squeak?",
+   "back": "mouse"
+  },
+  {
+   "front": "Which animal says trumpet?",
+   "back": "elephant"
+  },
+  {
+   "front": "Which animal says cock-a-doodle-doo?",
+   "back": "rooster"
+  }
+ ]
+}

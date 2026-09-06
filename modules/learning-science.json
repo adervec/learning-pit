@@ -1,0 +1,97 @@
+{
+  "id": "learning-science",
+  "title": "Learning Science",
+  "description": "How memory actually works — the rules this app is built on.",
+  "icon": "🧠",
+  "tags": ["learning", "meta"],
+  "cards": [
+    {
+      "front": "What is the spacing effect?",
+      "back": "The same study time works better spread out than crammed together",
+      "note": "It is why a card you review over weeks sticks better than one you drilled for an hour."
+    },
+    {
+      "front": "What is the testing effect?",
+      "back": "Retrieving something from memory strengthens it more than re-reading it",
+      "note": "Also called retrieval practice. The effort of recall is the mechanism, not a measurement of it."
+    },
+    {
+      "front": "Why does re-reading feel more effective than it is?",
+      "back": "Fluency is mistaken for knowledge — familiar text feels known",
+      "hint": "A feeling, not a fact"
+    },
+    {
+      "front": "What is a desirable difficulty?",
+      "back": "A study condition that slows learning down but improves long-term retention",
+      "note": "Spacing, interleaving and testing all make practice feel harder and the memory last longer."
+    },
+    {
+      "front": "What is interleaving?",
+      "back": "Mixing different problem types in one session instead of blocking them",
+      "note": "It hurts practice performance and helps the ability to choose the right approach later."
+    },
+    {
+      "front": "What does Ebbinghaus's forgetting curve describe?",
+      "back": "Memory for new material drops steeply at first, then levels off",
+      "hint": "Named after the man who memorised nonsense syllables on himself"
+    },
+    {
+      "front": "What is the generation effect?",
+      "back": "You remember what you produced better than what you were shown",
+      "note": "Guessing before being told helps even when the guess is wrong."
+    },
+    {
+      "front": "What is elaboration?",
+      "back": "Explaining how and why something works, connecting it to what you know",
+      "options": ["Repeating it until it sticks", "Highlighting the key sentences", "Copying it out by hand"]
+    },
+    {
+      "front": "Roughly how many items can working memory juggle at once?",
+      "back": "About four chunks",
+      "note": "The classic 'seven plus or minus two' is now thought to be closer to four without rehearsal."
+    },
+    {
+      "front": "What is chunking?",
+      "back": "Grouping items into meaningful units so they occupy less working memory",
+      "hint": "How a chess master sees a board"
+    },
+    {
+      "front": "What is dual coding?",
+      "back": "Pairing words with a visual representation so memory has two routes to it"
+    },
+    {
+      "front": "Why is a card that asks two things at once a bad card?",
+      "back": "It cannot be graded — you half-remember it and the schedule learns nothing",
+      "note": "One idea per card is the single most useful authoring rule."
+    },
+    {
+      "front": "What is a leech, in spaced repetition?",
+      "back": "A card you keep failing, which usually means the card is badly written",
+      "note": "Rewrite it, split it, or pause it. Repetition will not fix an ambiguous question."
+    },
+    {
+      "front": "What does 'transfer' mean in learning?",
+      "back": "Applying what you learned in one context to a different one",
+      "hint": "The whole point, and the hardest part"
+    },
+    {
+      "front": "Why does immediate feedback beat delayed feedback for beginners?",
+      "back": "It stops a wrong version of the answer being rehearsed",
+      "options": ["It feels kinder", "It saves study time", "It makes sessions shorter"]
+    },
+    {
+      "front": "What is overlearning?",
+      "back": "Continuing to practise after you have got it right",
+      "note": "Cheap in the short run, poor value compared with spacing the same minutes out."
+    },
+    {
+      "front": "What is context-dependent memory?",
+      "back": "Recall is easier in the setting where the learning happened",
+      "note": "Varying where and how you study makes the memory less dependent on any one cue."
+    },
+    {
+      "front": "What is the best predictor of long-term retention in a study session?",
+      "back": "How much you retrieved, not how long you sat there"
+    }
+  ]
+}

@@ -1,0 +1,156 @@
+{
+  "id": "letters",
+  "title": "Letters & Numbers",
+  "description": "Every letter and digit, one at a time, traced with a finger.",
+  "icon": "✍",
+  "tags": [
+    "kids",
+    "writing"
+  ],
+  "cards": [
+    {
+      "front": "Draw the letter A",
+      "back": "A"
+    },
+    {
+      "front": "Draw the letter B",
+      "back": "B"
+    },
+    {
+      "front": "Draw the letter C",
+      "back": "C"
+    },
+    {
+      "front": "Draw the letter D",
+      "back": "D"
+    },
+    {
+      "front": "Draw the letter E",
+      "back": "E"
+    },
+    {
+      "front": "Draw the letter F",
+      "back": "F"
+    },
+    {
+      "front": "Draw the letter G",
+      "back": "G"
+    },
+    {
+      "front": "Draw the letter H",
+      "back": "H"
+    },
+    {
+      "front": "Draw the letter I",
+      "back": "I"
+    },
+    {
+      "front": "Draw the letter J",
+      "back": "J"
+    },
+    {
+      "front": "Draw the letter K",
+      "back": "K"
+    },
+    {
+      "front": "Draw the letter L",
+      "back": "L"
+    },
+    {
+      "front": "Draw the letter M",
+      "back": "M"
+    },
+    {
+      "front": "Draw the letter N",
+      "back": "N"
+    },
+    {
+      "front": "Draw the letter O",
+      "back": "O"
+    },
+    {
+      "front": "Draw the letter P",
+      "back": "P"
+    },
+    {
+      "front": "Draw the letter Q",
+      "back": "Q"
+    },
+    {
+      "front": "Draw the letter R",
+      "back": "R"
+    },
+    {
+      "front": "Draw the letter S",
+      "back": "S"
+    },
+    {
+      "front": "Draw the letter T",
+      "back": "T"
+    },
+    {
+      "front": "Draw the letter U",
+      "back": "U"
+    },
+    {
+      "front": "Draw the letter V",
+      "back": "V"
+    },
+    {
+      "front": "Draw the letter W",
+      "back": "W"
+    },
+    {
+      "front": "Draw the letter X",
+      "back": "X"
+    },
+    {
+      "front": "Draw the letter Y",
+      "back": "Y"
+    },
+    {
+      "front": "Draw the letter Z",
+      "back": "Z"
+    },
+    {
+      "front": "Draw the number 0",
+      "back": "0"
+    },
+    {
+      "front": "Draw the number 1",
+      "back": "1"
+    },
+    {
+      "front": "Draw the number 2",
+      "back": "2"
+    },
+    {
+      "front": "Draw the number 3",
+      "back": "3"
+    },
+    {
+      "front": "Draw the number 4",
+      "back": "4"
+    },
+    {
+      "front": "Draw the number 5",
+      "back": "5"
+    },
+    {
+      "front": "Draw the number 6",
+      "back": "6"
+    },
+    {
+      "front": "Draw the number 7",
+      "back": "7"
+    },
+    {
+      "front": "Draw the number 8",
+      "back": "8"
+    },
+    {
+      "front": "Draw the number 9",
+      "back": "9"
+    }
+  ]
+}

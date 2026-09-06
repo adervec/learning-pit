@@ -1,0 +1,8 @@
+{
+  "title": "Linked Source",
+  "description": "A fixture for the self test: a module fetched over http keeps the URL it came from.",
+  "cards": [
+    { "front": "alpha", "back": "first" },
+    { "front": "beta", "back": "second" }
+  ]
+}

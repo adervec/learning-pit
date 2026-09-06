@@ -1,0 +1,192 @@
+{
+  "id": "times-tables",
+  "title": "Times Tables",
+  "description": "Multiplication facts from 2×2 to 9×9.",
+  "icon": "➗",
+  "tags": [
+    "maths",
+    "kids"
+  ],
+  "cards": [
+    {
+      "id": "t2x2",
+      "front": "2 × 2",
+      "back": "4"
+    },
+    {
+      "id": "t2x3",
+      "front": "2 × 3",
+      "back": "6"
+    },
+    {
+      "id": "t2x4",
+      "front": "2 × 4",
+      "back": "8"
+    },
+    {
+      "id": "t2x5",
+      "front": "2 × 5",
+      "back": "10"
+    },
+    {
+      "id": "t2x6",
+      "front": "2 × 6",
+      "back": "12"
+    },
+    {
+      "id": "t2x7",
+      "front": "2 × 7",
+      "back": "14"
+    },
+    {
+      "id": "t2x8",
+      "front": "2 × 8",
+      "back": "16"
+    },
+    {
+      "id": "t2x9",
+      "front": "2 × 9",
+      "back": "18"
+    },
+    {
+      "id": "t3x3",
+      "front": "3 × 3",
+      "back": "9"
+    },
+    {
+      "id": "t3x4",
+      "front": "3 × 4",
+      "back": "12"
+    },
+    {
+      "id": "t3x5",
+      "front": "3 × 5",
+      "back": "15"
+    },
+    {
+      "id": "t3x6",
+      "front": "3 × 6",
+      "back": "18"
+    },
+    {
+      "id": "t3x7",
+      "front": "3 × 7",
+      "back": "21"
+    },
+    {
+      "id": "t3x8",
+      "front": "3 × 8",
+      "back": "24"
+    },
+    {
+      "id": "t3x9",
+      "front": "3 × 9",
+      "back": "27"
+    },
+    {
+      "id": "t4x4",
+      "front": "4 × 4",
+      "back": "16"
+    },
+    {
+      "id": "t4x5",
+      "front": "4 × 5",
+      "back": "20"
+    },
+    {
+      "id": "t4x6",
+      "front": "4 × 6",
+      "back": "24"
+    },
+    {
+      "id": "t4x7",
+      "front": "4 × 7",
+      "back": "28"
+    },
+    {
+      "id": "t4x8",
+      "front": "4 × 8",
+      "back": "32"
+    },
+    {
+      "id": "t4x9",
+      "front": "4 × 9",
+      "back": "36"
+    },
+    {
+      "id": "t5x5",
+      "front": "5 × 5",
+      "back": "25"
+    },
+    {
+      "id": "t5x6",
+      "front": "5 × 6",
+      "back": "30"
+    },
+    {
+      "id": "t5x7",
+      "front": "5 × 7",
+      "back": "35"
+    },
+    {
+      "id": "t5x8",
+      "front": "5 × 8",
+      "back": "40"
+    },
+    {
+      "id": "t5x9",
+      "front": "5 × 9",
+      "back": "45"
+    },
+    {
+      "id": "t6x6",
+      "front": "6 × 6",
+      "back": "36"
+    },
+    {
+      "id": "t6x7",
+      "front": "6 × 7",
+      "back": "42"
+    },
+    {
+      "id": "t6x8",
+      "front": "6 × 8",
+      "back": "48"
+    },
+    {
+      "id": "t6x9",
+      "front": "6 × 9",
+      "back": "54"
+    },
+    {
+      "id": "t7x7",
+      "front": "7 × 7",
+      "back": "49"
+    },
+    {
+      "id": "t7x8",
+      "front": "7 × 8",
+      "back": "56"
+    },
+    {
+      "id": "t7x9",
+      "front": "7 × 9",
+      "back": "63"
+    },
+    {
+      "id": "t8x8",
+      "front": "8 × 8",
+      "back": "64"
+    },
+    {
+      "id": "t8x9",
+      "front": "8 × 9",
+      "back": "72"
+    },
+    {
+      "id": "t9x9",
+      "front": "9 × 9",
+      "back": "81"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "modules": [
+    "cognitive-biases.json",
+    "colours.json",
+    "counting.json",
+    "first-words.json",
+    "flags.json",
+    "learning-science.json",
+    "llm-literacy.json",
+    "logical-fallacies.json",
+    "opposites.json",
+    "picture-words.json",
+    "premiers-mots.json",
+    "shapes.json",
+    "solar-system.json",
+    "times-tables.json",
+    "using-the-pit.json",
+    "world-capitals.json",
+    "letters.json",
+    "confused-words.json",
+    "petites-phrases.json",
+    "division.json",
+    "telling-time.json",
+    "days-and-months.json",
+    "animal-sounds.json"
+  ]
+}

@@ -1,0 +1,73 @@
+{
+  "id": "logical-fallacies",
+  "title": "Logical Fallacies",
+  "description": "Name the flaw in the reasoning.",
+  "icon": "🧩",
+  "tags": [
+    "logic",
+    "reasoning"
+  ],
+  "cards": [
+    {
+      "front": "Attacking the person making the argument instead of the argument",
+      "back": "Ad hominem",
+      "hint": "\"to the person\""
+    },
+    {
+      "front": "Misrepresenting someone's argument to make it easier to attack",
+      "back": "Straw man"
+    },
+    {
+      "front": "Claiming something is true because it has not been proven false",
+      "back": "Argument from ignorance"
+    },
+    {
+      "front": "Presenting only two options when more exist",
+      "back": "False dilemma"
+    },
+    {
+      "front": "Assuming one small step inevitably leads to a chain of disasters",
+      "back": "Slippery slope"
+    },
+    {
+      "front": "Treating a link between two events as proof that one produced the other",
+      "back": "Post hoc / false cause"
+    },
+    {
+      "front": "Using the conclusion as one of the premises",
+      "back": "Circular reasoning (begging the question)"
+    },
+    {
+      "front": "Claiming something is true because many people believe it",
+      "back": "Appeal to popularity (ad populum)"
+    },
+    {
+      "front": "Citing a famous name outside their field as proof",
+      "back": "Appeal to false authority"
+    },
+    {
+      "front": "Generalising from a sample far too small to support it",
+      "back": "Hasty generalisation"
+    },
+    {
+      "front": "Shifting the definition of a term mid-argument",
+      "back": "Equivocation"
+    },
+    {
+      "front": "Redefining a category to dismiss any counterexample",
+      "back": "No true Scotsman"
+    },
+    {
+      "front": "Introducing an irrelevant topic to divert the argument",
+      "back": "Red herring"
+    },
+    {
+      "front": "Demanding the other side disprove your unsupported claim",
+      "back": "Shifting the burden of proof"
+    },
+    {
+      "front": "Judging a decision by its outcome rather than the information available at the time",
+      "back": "Resulting (outcome bias)"
+    }
+  ]
+}

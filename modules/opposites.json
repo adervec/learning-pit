@@ -1,0 +1,32 @@
+{
+  "id": "opposites",
+  "title": "Opposites",
+  "description": "Say the other one.",
+  "icon": "⚖️",
+  "tags": [
+    "words",
+    "kids"
+  ],
+  "cards": [
+    { "front": "The opposite of big", "back": "small", "alt": ["little", "tiny"] },
+    { "front": "The opposite of hot", "back": "cold", "alt": ["cool"] },
+    { "front": "The opposite of up", "back": "down" },
+    { "front": "The opposite of fast", "back": "slow" },
+    { "front": "The opposite of day", "back": "night" },
+    { "front": "The opposite of wet", "back": "dry" },
+    { "front": "The opposite of happy", "back": "sad" },
+    { "front": "The opposite of open", "back": "shut", "alt": ["closed"] },
+    { "front": "The opposite of full", "back": "empty" },
+    { "front": "The opposite of loud", "back": "quiet", "alt": ["soft"] },
+    { "front": "The opposite of old", "back": "new", "alt": ["young"] },
+    { "front": "The opposite of hard", "back": "soft", "alt": ["easy"] },
+    { "front": "The opposite of in", "back": "out" },
+    { "front": "The opposite of front", "back": "back" },
+    { "front": "The opposite of light", "back": "dark", "alt": ["heavy"] },
+    { "front": "The opposite of long", "back": "short" },
+    { "front": "The opposite of first", "back": "last" },
+    { "front": "The opposite of clean", "back": "dirty", "alt": ["messy"] },
+    { "front": "The opposite of push", "back": "pull" },
+    { "front": "The opposite of over", "back": "under" }
+  ]
+}
