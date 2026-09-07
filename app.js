@@ -872,6 +872,19 @@ function examBreakdown() {
       Drill the ${new Set((session.missed || []).map(c => c.front)).size} you missed</button></div>` : ''}`;
 }
 
+// The maker's app portal keeps a character sheet from what its apps report about you: one
+// entry per finished sitting, amount in units of ten minutes. Same-origin localStorage, so it
+// never leaves this browser. The selftest drives hundreds of sittings, so it is excluded.
+function portalActivity(startedAt) {
+  if (location.search.includes('selftest')) return;
+  try {
+    const k = 'portal-activity', a = JSON.parse(localStorage.getItem(k) || '[]');
+    const mins = Math.max(1, Math.round((Date.now() - (startedAt || Date.now())) / 60000));
+    a.push([Math.round(Date.now() / 1000), 'learning-pit', 'study', Math.max(0.5, mins / 10)]);
+    localStorage.setItem(k, JSON.stringify(a.slice(-2000)));
+  } catch { /* quota - ignore */ }
+}
+
 function results() {
   const { right, wrong, module: m } = session;
   const total = right + wrong || 1;
@@ -899,6 +912,7 @@ function results() {
       p.stats.rank = now;
     }
     save();
+    portalActivity(session.startedAt);
     blip(stars >= 2 ? 'win' : 'good');
     if (session.sticker) toast(`New sticker: ${session.sticker.emoji} ${session.sticker.name}`);
     if (session.promoted) toast(`You are now ${session.promoted}.`);
@@ -1613,7 +1627,107 @@ function progressView() {
               l.misses ? `${l.misses} of the last 6 missed` : `missed ${l.lapses}×`}</em></button>
           <button class="ghost sm" data-act="pausekey" data-k="${esc(cardKey(l.module.id, l.card))}">pause</button>
         </div>`).join('')}
-        ${stuck.length > 10 ? `<p class="lede dim">…and ${stuck.length - 10} more</p>` : ''}</div>` : ''}`;
+        ${stuck.length > 10 ? `<p class="lede dim">…and ${stuck.length - 10} more</p>` : ''}</div>` : ''}
+    <h2>Ask a tutor</h2>
+    <p class="lede">Hand this progress to an agent through a folder on this device — CoworkSyncHub,
+    Claude Desktop, or a person — and it will say what to study next. Nothing is uploaded.</p>
+    <div id="coachhost"></div>
+    <p class="lede" id="coachreply" style="display:none;white-space:pre-wrap"></p>`;
+  mountCoach();
+}
+
+// Folder cowork through the maker's shared panel (https://adervec.github.io/cowork.js) in fs
+// mode: it drives a folder you pick, we write coach/request.json into it and show whatever an
+// agent writes back to coach/reply.json. Every screen rebuilds the DOM, so this re-mounts per
+// render; the script is fetched once. Kid mode never reaches here — that branch returns above.
+function loadCowork() {
+  if (window.cowork) return Promise.resolve(window.cowork);
+  const head = document.head || document.documentElement;
+  if (!head || typeof head.appendChild !== 'function') return Promise.resolve(null);
+  return new Promise(res => {
+    try {
+      const s = document.createElement('script');
+      s.src = 'https://adervec.github.io/cowork.js';
+      s.async = true;
+      s.onload = () => res(window.cowork || null);
+      s.onerror = () => res(null);
+      head.appendChild(s);
+    } catch { res(null); }
+  });
+}
+function coachHash(t) {
+  let h = 5381;
+  for (let i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0;
+  return h.toString(16);
+}
+const COACH_INSTRUCTIONS = [
+  '# Learning Pit - coach channel',
+  '',
+  'A learner is working through their own flashcard modules with spaced repetition.',
+  'Read `coach/request.json`:',
+  '',
+  '- `payload.stats` - streak, lifetime reviews, accuracy, this week, rank.',
+  '- `payload.modules` - each module: title, cards, learned, due now, accuracy.',
+  '- `payload.forecast` - reviews falling due over the next 30 days.',
+  '- `payload.sittings` - the last sittings: module, game, right, wrong, seconds.',
+  '- `payload.stuck` - the questions that keep going wrong, and how often.',
+  '- `payload.confusions` - pairs of answers they mix up with each other.',
+  '',
+  'Write `coach/reply.json`:',
+  '',
+  '```json',
+  '{ "requestHash": "<copy the request\'s requestHash verbatim>",',
+  '  "reply": "<short markdown: the one module to give time to this week and why, what the',
+  '  sticking points have in common, and one concrete way to rewrite or split a card that keeps',
+  '  failing. Warm and practical. Never scold a missed day.>" }',
+  '```'
+].join('\n');
+function mountCoach() {
+  const host = document.getElementById('coachhost');
+  const out = document.getElementById('coachreply');
+  if (!host || host.childElementCount) return;
+  const show = t => { out.textContent = t || ''; out.style.display = t ? 'block' : 'none'; };
+  try { show(localStorage.getItem('pit.coachreply') || ''); } catch { /* private mode */ }
+  loadCowork().then(cw => {
+    if (!cw || host.childElementCount) return;
+    cw.mount(host, {
+      app: 'learning-pit',
+      manifest: { protocol: 'cowork-manifest', protocolVersion: 1, app: 'learning-pit',
+        channels: [{ name: 'coach', request: ['coach/request.json'],
+          instructions: 'coach/INSTRUCTIONS.md', replyPath: 'coach/reply.json' }] },
+      files: () => {
+        const p = P(), st = p.stats, now = Date.now();
+        const payload = {
+          stats: { streak: st.streak || 0, bestStreak: st.bestStreak || 0,
+            reviews: st.reviews || 0, correct: st.correct || 0, rank: st.rank || null,
+            accuracy: st.reviews ? Math.round((st.correct / st.reviews) * 100) : null },
+          modules: visible().map(m => {
+            const c = counts(m.cards, p.srs, m.id, now);
+            return { title: m.title, cards: c.total, learned: c.learned, due: c.due };
+          }),
+          forecast: forecast(visible(), p.srs, 30, now),
+          sittings: (st.sessions || []).slice(0, 20).map(s => ({ module: s.m, game: s.g,
+            right: s.r, wrong: s.w, seconds: s.secs })),
+          stuck: troubleSpots(visible(), p.srs).slice(0, 15).map(l => ({ question: l.card.front,
+            module: l.module.title, lapses: l.lapses, recentMisses: l.misses })),
+          confusions: (st.confusions || []).slice(0, 15),
+        };
+        return {
+          'coach/request.json': { protocol: 'learning-pit-coach', protocolVersion: 1,
+            kind: 'coach-request', generatedAt: new Date().toISOString(),
+            requestHash: coachHash(JSON.stringify(payload)), payload },
+          'coach/INSTRUCTIONS.md': COACH_INSTRUCTIONS,
+        };
+      },
+      apply: (ch, reply) => {
+        const t = typeof reply === 'string' ? reply
+          : (reply && (reply.reply || (reply.payload && reply.payload.reply)))
+            || JSON.stringify(reply, null, 2);
+        try { localStorage.setItem('pit.coachreply', t); } catch { /* quota */ }
+        show(t);
+      },
+    });
+  });
 }
 
 // Two modules built from two conversations about the same subject will overlap, and each
@@ -1711,7 +1825,11 @@ function settings() {
     <p class="lede" id="usage">…</p>
     <div id="heavy"></div>
     <button class="ghost sm" data-act="wipe">Erase everything on this device</button>
-    <p id="err" class="err"></p>`;
+    <p id="err" class="err"></p>
+    <h2>Elsewhere</h2>
+    <p class="lede">More apps by the same maker, all free and local-first —
+      <a class="linky" href="https://adervec.github.io/portal/" target="_blank"
+        rel="noopener">adervec.github.io</a></p>`;
   for (const el of app.querySelectorAll('[data-opt]')) {
     el.addEventListener('change', e => {
       const v = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
@@ -4043,6 +4161,16 @@ addEventListener('beforeinstallprompt', e => {
 
   // Ask the browser not to evict a year of review history when storage runs low.
   navigator.storage?.persist?.().catch(() => {});
+
+  // Let the maker's app portal know (same-origin localStorage) that this app is installed.
+  try {
+    const dm = ['standalone', 'minimal-ui', 'fullscreen', 'window-controls-overlay'];
+    if (navigator.standalone || dm.some(m => matchMedia(`(display-mode: ${m})`).matches)) {
+      const k = 'portal-installed', reg = JSON.parse(localStorage.getItem(k) || '{}');
+      reg['learning-pit'] = Date.now();
+      localStorage.setItem(k, JSON.stringify(reg));
+    }
+  } catch { /* private mode - ignore */ }
 
   if (location.protocol.startsWith('http')) {
     navigator.serviceWorker?.register('sw.js').then(reg => {
