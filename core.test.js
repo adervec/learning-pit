@@ -1,6 +1,6 @@
 // node core.test.js  — fails loudly if the scheduling / merge / validation logic breaks.
 import assert from 'node:assert/strict';
-import { DAY, LEECH_AT, STICKERS, stickersFor, stickerEarned, auditModule, bestTime, bumpStreak, cardKey, cloze, counts, dayStr, deadlinePlan, decoys, distractors, dueAcross, duplicatesAcross, weeklyTotals, esc, examScore, examSet, fmt, forecast, growPrompt, hash, ident, judgeTyped, newCards, keyPoints, coverage, letterTiles, levenshtein, mergeConfusions, mergeState, minutesFor, pace, parseImport, pickSession, rankFor, schedule, reminderIcs, sharpenPrompt, slowAfter, spreadDue, tagTotals, spellable, starred, toMarkdown, troubleSpots, validateModule, weekSummary } from './core.js';
+import { DAY, LEECH_AT, STICKERS, stickersFor, stickerEarned, auditModule, bestTime, bumpStreak, cardKey, cloze, counts, dayStr, deadlinePlan, decoys, distractors, dueAcross, duplicatesAcross, weeklyTotals, esc, examScore, examSet, fmt, forecast, growPrompt, hash, ident, judgeTyped, newCards, keyPoints, coverage, letterTiles, levenshtein, mergeConfusions, mergeState, minutesFor, pace, parseImport, pickSession, rankFor, schedule, reminderIcs, sharpenPrompt, slowAfter, spreadDue, tagTotals, spellable, starred, toMarkdown, troubleSpots, validateModule, weekSummary, maskHint, diffChars, quickBefore, yearSummary, listItems, ladderRung, briefPayload } from './core.js';
 
 const T = 1_700_000_000_000;
 const cards = Array.from({ length: 10 }, (_, i) => ({ front: `q${i}`, back: `a${i}` }));
@@ -895,6 +895,148 @@ assert.deepEqual(mergeState(merged, remote), mergeState(mergeState(merged, remot
     assert.ok(d.profiles.Kid.srs['m:b'], `${name} kept the laptop's review`);
     assert.equal(d.custom.length, 1, `${name} kept the imported module`);
   }
+}
+
+// --- the deadline's final stretch sweeps up cards scheduled past it ---
+{
+  const mod = 'dl', two = [{ front: 'x', back: 'y' }, { front: 'p', back: 'q' }];
+  const end = new Date(dayStr(T + 2 * DAY) + 'T23:59:59').getTime();
+  const srs = { [cardKey(mod, two[0])]: { reps: 3, interval: 20, due: T + 20 * DAY } };   // not due until after the exam
+  const soon = deadlinePlan(two, srs, mod, dayStr(T + 2 * DAY), T);
+  assert.equal(soon.beyond, 1, 'a card due after the exam is counted');
+  assert.equal(soon.sweep, true, 'and two days out the sweep is on');
+  assert.equal(soon.end, end, 'the plan says when the exam ends');
+  const far = deadlinePlan(two, srs, mod, dayStr(T + 10 * DAY), T);
+  assert.equal(far.sweep, false, 'ten days out it is not');
+  assert.equal(far.beyond, 1, 'though the card is still counted');
+  const swept = pickSession(two, srs, mod, { size: 10, newPerSession: 1, now: Infinity, rnd: mid });
+  assert.ok(swept.some(c => c.front === 'x'), 'treating every scheduled card as due pulls it into the sitting');
+  assert.equal(swept.length, 2, 'alongside the new card, not instead of it');
+  assert.ok(!pickSession(two, srs, mod, { size: 10, newPerSession: 1, now: T, rnd: mid }).some(c => c.front === 'x'),
+    'where "due today" would not');
+  assert.equal(deadlinePlan(two, srs, mod, dayStr(T - DAY), T).sweep, false, 'a passed deadline sweeps nothing');
+}
+
+// --- Anki cloze syntax becomes ordinary cards ---
+{
+  const [m] = parseImport('The capital of France is {{c1::Paris}}\nWater is {{c1::H2O::formula}}\n');
+  assert.equal(m.cards.length, 2, 'one cloze line is one card');
+  assert.equal(m.cards[0].front, 'The capital of France is […]');
+  assert.equal(m.cards[0].back, 'Paris');
+  assert.equal(m.cards[1].hint, 'formula', 'the cloze hint comes through');
+  const multi = validateModule({ title: 't', cards: [{ front: '{{c1::Oslo}} is in {{c2::Norway}}', back: 'extra' }] });
+  assert.equal(multi.cards.length, 2, 'two gaps make two cards');
+  assert.equal(multi.cards[0].front, '[…] is in Norway', 'the other gap is shown on the first');
+  assert.equal(multi.cards[1].front, 'Oslo is in […]', 'and the first on the other');
+  assert.equal(multi.cards[1].back, 'Norway');
+  assert.equal(multi.cards[0].note, 'extra', "Anki's back-extra becomes the note");
+  const tsv = parseImport('The capital is {{c1::Paris}}\tExtra\nThe sea is {{c1::blue}}\tMore');
+  assert.equal(tsv[0].cards[0].back, 'Paris', "a cloze's own :: does not split a tab-separated line");
+  assert.equal(tsv[0].cards[0].note, 'Extra');
+  assert.equal(parseImport('alpha :: first\nbeta :: second')[0].cards.length, 2, 'plain :: still splits');
+}
+
+// --- a hint nobody wrote: the shape of the answer ---
+assert.equal(maskHint('Paris'), 'P _ _ _ _');
+assert.equal(maskHint('New York'), 'N _ _   Y _ _ _', 'each word keeps its first letter');
+assert.equal(maskHint('42'), '4 _');
+assert.equal(maskHint('The mitochondrion is the powerhouse of the cell'), null, 'a sentence has no useful shape');
+assert.equal(maskHint(''), null);
+
+// --- the letter diff shows where a typed answer went wrong ---
+{
+  const d = diffChars('mitocondria', 'mitochondria');
+  assert.ok(d.guess.every(([, ok]) => ok), 'every typed letter was in the answer');
+  assert.deepEqual(d.answer.filter(([, ok]) => !ok).map(([ch]) => ch), ['h'], 'the one letter missed is flagged');
+  const e = diffChars('Venis', 'venus');
+  assert.deepEqual(e.guess.filter(([, ok]) => !ok).map(([ch]) => ch), ['i'], 'the stray letter is flagged');
+  assert.deepEqual(e.answer.filter(([, ok]) => !ok).map(([ch]) => ch), ['u']);
+  assert.ok(e.guess[0][1], 'case does not count');
+  assert.equal(diffChars('', 'x'), null, 'nothing typed, nothing to show');
+  assert.equal(diffChars('a'.repeat(300), 'b'.repeat(300)), null, 'and nothing worth showing for an essay');
+}
+
+// --- a snap wrong answer is a guess ---
+assert.equal(quickBefore([]), 2, 'a third of the default pace');
+assert.equal(quickBefore(Array(5).fill({ r: 10, w: 0, secs: 30 })), 1.5, 'never under a second and a half');
+assert.equal(quickBefore(Array(5).fill({ r: 10, w: 0, secs: 400 })), 4, 'never over four');
+assert.ok(quickBefore([]) < slowAfter([]), 'quick is quicker than slow');
+
+// --- the year summary ---
+{
+  const days = {}, hits = {};
+  for (let i = 0; i < 400; i += 2) { days[dayStr(T - i * DAY)] = 4; hits[dayStr(T - i * DAY)] = 3; }
+  const busy = dayStr(T - 100 * DAY);
+  days[busy] = 50;
+  const y = yearSummary({ days, hits }, T);
+  assert.equal(y.active, 183, 'only days inside the year count');
+  assert.equal(y.reviews, 183 * 4 + 46);
+  assert.equal(y.busiest.month, busy.slice(0, 7), 'the busiest month is named');
+  assert.ok(y.pct > 60 && y.pct < 80, 'accuracy over the year');
+  assert.equal(yearSummary({}, T).reviews, 0, 'an empty history is a quiet year');
+}
+
+// --- answers that are sequences ---
+assert.deepEqual(listItems({ front: 'Inner planets', back: 'Mercury → Venus → Earth → Mars' }), ['Mercury', 'Venus', 'Earth', 'Mars']);
+assert.deepEqual(listItems({ front: 'Bread', back: 'mix; knead; prove; bake' }), ['mix', 'knead', 'prove', 'bake']);
+assert.deepEqual(listItems({ front: 'Order the stages of mitosis', back: 'prophase, metaphase, anaphase, and telophase' }),
+  ['prophase', 'metaphase', 'anaphase', 'telophase'], 'commas count when the question asks for an order');
+assert.equal(listItems({ front: 'An apple is', back: 'a fruit, red, sweet' }), null, 'but a description is not a sequence');
+assert.equal(listItems({ front: 'Two', back: 'a → b' }), null, 'two steps is not a sequence');
+assert.equal(listItems({ front: 'Steps', back: '1. wake 2. wash\n3. dress' }), null, 'two lines are not three steps');
+assert.equal(listItems({ front: 'Repeat', back: 'a; b; a' }), null, 'repeated items are not an order');
+
+// --- the ladder: what each card has earned ---
+{
+  const short = { front: 'q', back: 'Paris' }, long = { front: 'q', back: 'The mitochondrion is the powerhouse of the cell' };
+  assert.equal(ladderRung(undefined, short, { poolSize: 10 }), 'choice', 'a new card is recognised first');
+  assert.equal(ladderRung(undefined, short, { poolSize: 3 }), 'recall', 'unless there is nothing to pick between');
+  assert.equal(ladderRung(undefined, { ...short, options: ['a', 'b', 'c'] }, { poolSize: 1 }), 'choice', 'authored options are enough');
+  assert.equal(ladderRung({ reps: 1, interval: 1 }, long, { poolSize: 10 }), 'cloze', 'a young card gets a blank');
+  assert.equal(ladderRung({ reps: 1, interval: 1 }, short, { poolSize: 10 }), 'choice', 'or options when the answer is one word');
+  assert.equal(ladderRung({ reps: 3, interval: 10 }, short, { poolSize: 10 }), 'type', 'a mature short answer is typed');
+  assert.equal(ladderRung({ reps: 3, interval: 10 }, long, { poolSize: 10 }), 'recall', 'a mature long one is recalled');
+  assert.equal(ladderRung({ reps: 3, interval: 10 }, short, { poolSize: 10, kid: true }), 'recall', 'kid mode never types');
+  assert.equal(ladderRung({ reps: 0, lapses: 1, interval: 0 }, short, { poolSize: 10 }), 'choice', 'a miss drops back to the first rung');
+}
+
+// --- the brief: one object with everything a coach or a daily/weekly brief needs ---
+{
+  const mods = [{ id: 'm', title: 'M', tags: ['t'], cards: [{ front: 'a', back: 'b' }, { front: 'c', back: 'd' }, { front: 'e', back: 'f' }] }];
+  const srs = {
+    ['m:' + hash('a')]: { reps: 2, lapses: 0, ease: 2.5, interval: 3, due: T - DAY, t: T - DAY },
+    ['m:' + hash('c')]: { reps: 1, lapses: 9, ease: 1.3, interval: 0, due: T, susp: true, t: T },
+  };
+  const stats = { streak: 4, reviews: 40, correct: 30, rank: 'Cadet',
+    days: { [dayStr(T)]: 5, [dayStr(T - DAY)]: 7 }, hits: { [dayStr(T)]: 4, [dayStr(T - DAY)]: 6 },
+    sessions: [{ t: T - 3600000, m: 'M', g: 'recall', r: 8, w: 2, secs: 60 }],
+    confusions: [{ a: 'x', b: 'y', n: 2 }] };
+  const b = briefPayload({
+    profiles: { Kid: { srs, stats, opts: { goal: 10, deadlines: { m: dayStr(T + 5 * DAY) } } }, Other: { srs: {}, stats: { days: {} } } },
+    active: 'Kid', modules: mods, now: T });
+  assert.equal(b.learner.today, dayStr(T), 'the brief knows what day it is');
+  assert.equal(b.learner.doneToday, 5);
+  assert.equal(b.learner.goal, 10);
+  assert.equal(b.days.length, 35, 'five weeks of days');
+  assert.equal(b.days.at(-1).day, dayStr(T), 'today last');
+  assert.deepEqual(b.days.at(-2), { day: dayStr(T - DAY), reviews: 7, correct: 6 }, 'each day with its count');
+  assert.equal(b.week.reviews, 12);
+  assert.equal(b.week.minutes, 1, 'time spent this week');
+  assert.equal(b.due.now, 1, 'the due pile');
+  assert.equal(b.due.forecast30.length, 30);
+  const m = b.modules[0];
+  assert.equal(m.due, 1); assert.equal(m.new, 1); assert.equal(m.paused, 1); assert.equal(m.learned, 0);
+  assert.equal(m.accuracy, 80, 'module accuracy from its own sittings');
+  assert.equal(m.lastStudied, new Date(T - 3600000).toISOString(), 'when it was last studied');
+  assert.equal(m.deadline.date, dayStr(T + 5 * DAY), 'the deadline rides along');
+  assert.ok(m.deadline.daysLeft >= 5 && m.deadline.perDay >= 1, 'with its plan');
+  assert.equal(b.sittings[0].at, new Date(T - 3600000).toISOString(), 'sittings carry their time');
+  assert.deepEqual(b.parked, [{ question: 'c', module: 'M' }], 'parked cards are named');
+  assert.equal(b.family.length, 2, 'the family board when there are several learners');
+  assert.equal(b.confusions[0].n, 2);
+  assert.equal(b.stats.rank, 'Cadet');
+  assert.ok(JSON.stringify(b).length < 20000, 'and the whole thing stays small');
+  assert.equal(briefPayload().modules.length, 0, 'an empty pit makes an empty brief, not an error');
 }
 
 console.log('core.js ok');

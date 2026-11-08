@@ -17,6 +17,7 @@
 <div id="out"></div>
 
 <script type="module">
+import { cardKey, dayStr } from './core.js';
 const out = document.getElementById('out');
 const frame = document.getElementById('frame');
 let pass = 0, fail = 0;
@@ -37,6 +38,39 @@ const wait = ms => new Promise(r => { waiters.set(++waitN, r); clock.postMessage
 const KEYS = ['pit.v1', 'pit.session', 'pit.wasSignedIn', 'pit.mockdrive'];
 const backup = Object.fromEntries(KEYS.map(k => [k, localStorage.getItem(k)]));
 const restore = () => KEYS.forEach(k => backup[k] === null ? localStorage.removeItem(k) : localStorage.setItem(k, backup[k]));
+// Pictures and recordings live in IndexedDB. Read one back the way the app does, and remember
+// which blobs were there before so the run can take its own out again without touching yours.
+const mediaDb = () => new Promise((res, rej) => {
+  const r = indexedDB.open('pit.media', 1);
+  r.onupgradeneeded = () => r.result.createObjectStore('blobs');
+  r.onsuccess = () => res(r.result);
+  r.onerror = () => rej(r.error);
+});
+const mediaKeys = async () => {
+  const db = await mediaDb();
+  const ks = await new Promise(r => { const q = db.transaction('blobs').objectStore('blobs').getAllKeys(); q.onsuccess = () => r(q.result); q.onerror = () => r([]); });
+  db.close();
+  return ks;
+};
+const media = async v => {
+  if (!String(v).startsWith('idb:')) return v;
+  const db = await mediaDb();
+  const got = await new Promise(r => { const q = db.transaction('blobs').objectStore('blobs').get(v); q.onsuccess = () => r(q.result); q.onerror = () => r(undefined); });
+  db.close();
+  return got;
+};
+const mediaBefore = new Set(await mediaKeys().catch(() => []));
+const mediaCleanup = async () => {
+  try {
+    const mine = (await mediaKeys()).filter(k => !mediaBefore.has(k));
+    if (!mine.length) return;
+    const db = await mediaDb();
+    const tx = db.transaction('blobs', 'readwrite');
+    for (const k of mine) tx.objectStore('blobs').delete(k);
+    await new Promise(r => { tx.oncomplete = tx.onerror = r; });
+    db.close();
+  } catch { /* no store, nothing to clean */ }
+};
 
 const doc = () => frame.contentDocument;
 const $ = sel => doc().querySelector(sel);
@@ -679,9 +713,10 @@ try {
   await click('.sheet-box [data-ok]', 600);
   const started = state().custom.find(m => m.id === 'field-notes');
   check(started?.cards.length === 1, 'the module is started with that one card');
-  check(started.cards[0].image?.startsWith('data:image/'), 'and the picture is stored on it');
-  check(started.cards[0].image.length < 60000, 'shrunk, not the original file',
-    started.cards[0].image.length + ' bytes');
+  check(started.cards[0].image?.startsWith('idb:'), 'and the picture is kept apart, in IndexedDB', String(started.cards[0].image).slice(0, 20));
+  const dot = await media(started.cards[0].image);
+  check(String(dot).startsWith('data:image/'), 'where it really is');
+  check(String(dot).length < 60000, 'shrunk, not the original file', String(dot).length + ' bytes');
   for (let t = 0; t < 30 && $('.picrow .thumb'); t++) await wait(100);   // the form resets after touch() settles
   check(!$('.picrow .thumb'), 'and the next card starts without it');
 
@@ -898,7 +933,8 @@ try {
   }
   check(doc().getElementById('app').className.includes('results'), 'the sitting ends on results');
   check($$('[data-act="notecard"]').length > 0, 'each miss offers a note');
-  const missedCard = $('.li.missed b').textContent.trim();
+  const noteRow = () => $('[data-act="notecard"]').closest('.li');
+  const missedCard = noteRow().querySelector('b').textContent.trim();
   await click('[data-act="notecard"]', 300);
   check(!!doc().getElementById('dlg'), 'which opens a field');
   doc().getElementById('dlg').value = 'I keep mixing this one up';
@@ -907,7 +943,7 @@ try {
     ?.cards.find(c => c.front === missedCard);
   check(noted?.note === 'I keep mixing this one up', 'and it lands on the card itself',
     JSON.stringify(noted?.note));
-  check($('.li.missed').textContent.includes('mixing this one up'), 'and shows straight away');
+  check(noteRow().textContent.includes('mixing this one up'), 'and shows straight away');
 
   // ---- 46. the slate takes a finger, and the word fits on it ----
   await boot();
@@ -1804,6 +1840,7 @@ try {
   }
   const revCore = await import('./core.js');
   const revMod = JSON.parse(localStorage.getItem('pit.v1')).custom.find(m => m.id === 'pic-rev');
+  for (const c of revMod.cards) c.image = await media(c.image);   // the disk holds pointers; keys need the picture
   const revWant = new Set(revMod.cards.map(c => revCore.cardKey('pic-rev', c)));
   const revKeys = Object.keys(profile().srs).filter(k => k.startsWith('pic-rev:'));
   check(revKeys.length === 2, 'two identical fronts stay two cards, even asked backwards',
@@ -2053,6 +2090,271 @@ try {
     `${players[1]} gets the miss they earned`, JSON.stringify(loser?.stats));
   check(saved.active === players[0] || saved.active === players[1], 'and the tablet is left on a real profile');
 
+  // ---- 96. the due pile is a ladder: each card asked the way it has earned ----
+  await boot();
+  const caps3 = await fetch('./modules/world-capitals.json').then(r => r.json());
+  const oneWord = caps3.cards.filter(c => !/\s/.test(c.back));
+  {
+    const st = JSON.parse(localStorage.getItem('pit.v1'));
+    const p = st.profiles[st.active];
+    const past = Date.now() - 3600000;
+    oneWord.slice(0, 3).forEach(c => { p.srs[cardKey('world-capitals', c)] = { reps: 1, lapses: 0, ease: 2.5, interval: 1, due: past, t: past }; });
+    oneWord.slice(3, 5).forEach(c => { p.srs[cardKey('world-capitals', c)] = { reps: 4, lapses: 0, ease: 2.5, interval: 12, due: past, t: past }; });
+    localStorage.setItem('pit.v1', JSON.stringify(st));
+  }
+  frame.src = './index.html?selftest';
+  await new Promise(r => frame.onload = r);
+  await waitFor('[data-act="reviewall"]');
+  await click('[data-act="reviewall"]', 300);
+  const rungs = { choice: 0, type: 0, other: 0 };
+  const capOf = q => caps3.cards.find(c => q.startsWith(c.front))?.back;
+  for (let i = 0; i < 12 && !doc().getElementById('app').className.includes('results'); i++) {
+    const q = $('.card .face')?.textContent.trim() || '';
+    if (doc().getElementById('ans')) {
+      rungs.type++;
+      doc().getElementById('ans').value = capOf(q) || '';
+      await click('#typef .btn', 250);
+      await click('[data-act="next"]', 200);
+    } else if ($('.opt')) {
+      rungs.choice++;
+      ($$('.opt').find(o => o.textContent.trim() === capOf(q)) || $('.opt')).click();
+      await wait(200);
+      await click('[data-act="next"]', 200);
+    } else if ($('[data-act="flip"]')) {
+      rungs.other++;
+      await click('[data-act="flip"]', 100);
+      await click('[data-g="good"]', 150);
+    } else break;
+  }
+  check(rungs.choice === 3, 'young cards are recognised among options', JSON.stringify(rungs));
+  check(rungs.type === 2, 'and mature ones are typed', JSON.stringify(rungs));
+  check(doc().getElementById('app').className.includes('results'), 'the ladder ends on results');
+  check(profile().stats.reviews === 5, 'every rung grades into the schedule', String(profile().stats.reviews));
+
+  // ---- 97. a sequence answer becomes an ordering game ----
+  await boot();
+  await click('[data-act="open"][data-id="world-capitals"]');
+  check(!$('[data-game="order"]'), 'Order it is not offered where nothing is a sequence');
+  await click('[data-act="home"]', 200);
+  await click('[data-act="import"]', 250);
+  doc().getElementById('paste').value = JSON.stringify({ title: 'Order Test', cards: [
+    { front: 'Inner planets, from the sun', back: 'Mercury → Venus → Earth → Mars' },
+    { front: 'Bread', back: 'mix; knead; prove; bake' },
+    { front: 'A plain card', back: 'a fruit, red, sweet' }] });
+  await click('[data-act="paste"]', 300);
+  await click('[data-act="commit"]', 600);
+  await click('[data-act="open"][data-id="order-test"]', 300);
+  check(!!$('[data-game="order"]'), 'and is offered to a module with sequence answers');
+  await click('[data-game="order"]', 300);
+  check($$('[data-act="ostep"]').length === 4, 'the steps are dealt', String($$('[data-act="ostep"]').length));
+  const seqs = { 'Inner planets, from the sun': ['Mercury', 'Venus', 'Earth', 'Mars'], Bread: ['mix', 'knead', 'prove', 'bake'] };
+  const which = Object.keys(seqs).find(k => $('.card .face').textContent.includes(k));
+  const tile = t => $$('[data-act="ostep"]').find(b => b.textContent.trim() === t);
+  tile(seqs[which][1]).click();
+  await wait(100);
+  check($$('[data-act="ounstep"]').length === 1, 'a placed step shows in the numbered list');
+  $('[data-act="ounstep"]').click();                 // taken back
+  await wait(100);
+  check($$('[data-act="ounstep"]').length === 0, 'and can be taken back');
+  for (const t of seqs[which]) { tile(t).click(); await wait(100); }
+  await wait(250);
+  check(!!$('.verdict.exact'), 'the right order checks itself', $('.verdict')?.textContent.trim());
+  check(profile().stats.reviews === 1, 'and is graded once', String(profile().stats.reviews));
+
+  // ---- 98. "not today" puts a card off until tomorrow, ungraded ----
+  await boot();
+  await click('[data-act="import"]', 250);
+  doc().getElementById('paste').value = JSON.stringify({ title: 'Snooze Test', cards: [{ front: 'sq', back: 'sa' }, { front: 'sq2', back: 'sa2' }] });
+  await click('[data-act="paste"]', 300);
+  await click('[data-act="commit"]', 600);
+  {
+    const st = JSON.parse(localStorage.getItem('pit.v1'));
+    const p = st.profiles[st.active];
+    const past = Date.now() - 3600000;
+    p.srs[cardKey('snooze-test', { front: 'sq' })] = { reps: 2, lapses: 0, ease: 2.5, interval: 3, due: past, t: past };
+    localStorage.setItem('pit.v1', JSON.stringify(st));
+  }
+  frame.src = './index.html?selftest';
+  await new Promise(r => frame.onload = r);
+  await waitFor('[data-act="open"]');
+  await click('[data-act="open"][data-id="snooze-test"]', 300);
+  await click('[data-game="recall"]', 300);
+  for (let i = 0; i < 2 && $('[data-act="snooze"]'); i++) await click('[data-act="snooze"]', 250);
+  const snoozed = profile().srs[cardKey('snooze-test', { front: 'sq' })];
+  check(snoozed?.due > Date.now() + 23 * 3600000, 'the due card waits until tomorrow', String(snoozed?.due - Date.now()));
+  check(snoozed?.reps === 2, 'without being graded');
+  check(!profile().srs[cardKey('snooze-test', { front: 'sq2' })], 'a new card is simply left for tomorrow');
+  check((profile().stats.reviews || 0) === 0, 'and nothing was counted as a review');
+  check(doc().getElementById('app').className.includes('results'), 'the sitting ends when every card is put off');
+
+  // ---- 99. the grade buttons say what they will do, and a hint can be asked for ----
+  await boot();
+  await click('[data-act="import"]', 250);
+  doc().getElementById('paste').value = JSON.stringify({ title: 'Hint Test', cards: [
+    { front: 'hq1', back: 'Paris' }, { front: 'hq2', back: 'Rome' }, { front: 'hq3', back: 'Oslo' }, { front: 'hq4', back: 'Lima' }] });
+  await click('[data-act="paste"]', 300);
+  await click('[data-act="commit"]', 600);
+  await click('[data-act="open"][data-id="hint-test"]', 300);
+  await click('[data-game="recall"]', 300);
+  check(!!$('[data-act="peek"]'), 'a card without an author hint offers the shape of its answer');
+  await click('[data-act="peek"]', 150);
+  check(/^[A-Z](\s_){3}$/.test($('.card .hint')?.textContent.trim() || ''), 'the hint is a first letter and blanks', $('.card .hint')?.textContent);
+  await click('[data-act="flip"]', 150);
+  check($('[data-g="good"] small')?.textContent === '1 day', 'Good on a new card says one day', $('[data-g="good"] small')?.textContent);
+  check($('[data-g="easy"] small')?.textContent === '3 days', 'Easy says three', $('[data-g="easy"] small')?.textContent);
+  check($('[data-g="again"] small')?.textContent === '10 min', 'Again says it comes straight back');
+
+  // ---- 100. a typed miss shows where it went wrong, and a snap miss is called a guess ----
+  await click('[data-act="home"]', 200);
+  await click('[data-act="open"][data-id="hint-test"]', 300);
+  await click('[data-game="type"]', 300);
+  doc().getElementById('ans').value = 'Venus';
+  await click('#typef .btn', 300);
+  check(!!$('.verdict.wrong del'), 'the stray letters are struck through');
+  check(!!$('.verdict.wrong ins'), 'and the missed ones marked', $('.verdict')?.innerHTML.slice(0, 160));
+  await click('[data-act="home"]', 200);
+  await click('[data-act="open"][data-id="hint-test"]', 300);
+  await click('[data-game="choice"]', 150);
+  const hintAnswers = { hq1: 'Paris', hq2: 'Rome', hq3: 'Oslo', hq4: 'Lima' };
+  const q0 = $('.card .face').textContent.trim();
+  $$('.opt').find(o => o.textContent.trim() !== hintAnswers[q0]).click();      // a snap wrong pick
+  await wait(150);
+  await click('[data-act="next"]', 200);
+  for (let i = 0; i < 4 && $('.opt'); i++) {
+    const q = $('.card .face').textContent.trim();
+    ($$('.opt').find(o => o.textContent.trim() === hintAnswers[q]) || $('.opt')).click();
+    await wait(120);
+    await click('[data-act="next"]', 150);
+  }
+  check(doc().getElementById('app').className.includes('results'), 'the sitting ends');
+  check(doc().body.textContent.includes('Wrong in a flash'), 'and the results name the guess');
+
+  // ---- 101. a high-contrast look is one setting away ----
+  await boot();
+  await click('[data-act="settings"]', 250);
+  $('[data-opt="theme"]').value = 'contrast';
+  $('[data-opt="theme"]').dispatchEvent(new frame.contentWindow.Event('change', { bubbles: true }));
+  await wait(250);
+  check(doc().documentElement.dataset.theme === 'contrast', 'high contrast is stamped on the page');
+  const ink = frame.contentWindow.getComputedStyle(doc().body).color;
+  check(ink === 'rgb(255, 255, 255)', 'and the ink is pure white', ink);
+
+  // ---- 102. Anki's cloze syntax pastes in as ordinary cards ----
+  await boot();
+  await click('[data-act="import"]', 250);
+  doc().getElementById('paste').value = 'The capital of France is {{c1::Paris}}\nWater is {{c1::H2O::formula}}';
+  await click('[data-act="paste"]', 300);
+  const clozeRows = $$('.picklist li span').map(e => e.textContent.trim());
+  check(clozeRows.length === 2 && clozeRows[0].includes('[…]'), 'each gap becomes a card with the gap shown', clozeRows.join(' | '));
+  await click('[data-act="commit"]', 600);
+  const clozed = state().custom.find(m => m.cards.some(c => c.back === 'Paris'));
+  check(!!clozed, 'and the hidden text is the answer');
+  check(clozed?.cards.find(c => c.back === 'H2O')?.hint === 'formula', 'with the cloze hint kept');
+
+  // ---- 103. the last days before a deadline sweep up cards scheduled past it ----
+  await boot();
+  await click('[data-act="import"]', 250);
+  doc().getElementById('paste').value = JSON.stringify({ title: 'Exam Test', cards: [{ front: 'eq1', back: 'ea1' }, { front: 'eq2', back: 'ea2' }] });
+  await click('[data-act="paste"]', 300);
+  await click('[data-act="commit"]', 600);
+  {
+    const st = JSON.parse(localStorage.getItem('pit.v1'));
+    const p = st.profiles[st.active];
+    p.srs[cardKey('exam-test', { front: 'eq1' })] = { reps: 4, lapses: 0, ease: 2.5, interval: 30, due: Date.now() + 30 * 86400000, t: Date.now() };
+    p.opts = p.opts || {};
+    p.opts.deadlines = { 'exam-test': dayStr(Date.now() + 2 * 86400000) };
+    localStorage.setItem('pit.v1', JSON.stringify(st));
+  }
+  frame.src = './index.html?selftest';
+  await new Promise(r => frame.onload = r);
+  await waitFor('[data-act="open"]');
+  await click('[data-act="open"][data-id="exam-test"]', 300);
+  check(/Final stretch: 1 card is scheduled past the date/.test(doc().body.textContent), 'the module screen says what the final stretch does');
+  await click('[data-game="recall"]', 300);
+  check($('.pcount')?.textContent.trim() === '0 of 2', 'the far-off card joins the new one in the sitting', $('.pcount')?.textContent);
+
+  // ---- 104. a year of days gets the long view ----
+  await boot();
+  {
+    const st = JSON.parse(localStorage.getItem('pit.v1'));
+    const p = st.profiles[st.active];
+    p.stats.days = {}; p.stats.hits = {};
+    for (let i = 1; i <= 45; i++) { const k = dayStr(Date.now() - i * 86400000); p.stats.days[k] = 5; p.stats.hits[k] = 4; }
+    p.stats.reviews = 225; p.stats.correct = 180;
+    localStorage.setItem('pit.v1', JSON.stringify(st));
+  }
+  frame.src = './index.html?selftest';
+  await new Promise(r => frame.onload = r);
+  await waitFor('[data-act="open"]');
+  await click('[data-act="progress"]', 400);
+  check(/Last twelve months: 225 reviews on 45 days, 80% right/.test(doc().body.textContent.replace(/\s+/g, ' ')),
+    'the progress screen sums the year', doc().body.textContent.match(/Last twelve months[^.]*/)?.[0]);
+
+  // ---- 105. Say it is offered where there is a language to say it in ----
+  await boot();
+  await click('[data-act="open"][data-id="world-capitals"]');
+  check(!$('[data-game="sayit"]'), 'an English module has nothing to shadow');
+  await click('[data-act="home"]', 200);
+  await click('[data-act="open"][data-id="premiers-mots"]', 300);
+  const canHear = !!(frame.contentWindow.SpeechRecognition || frame.contentWindow.webkitSpeechRecognition);
+  check(!!$('[data-game="sayit"]') === canHear, canHear ? 'a French module offers Say it' : 'without speech recognition Say it stays hidden');
+  if (canHear) {
+    await click('[data-game="sayit"]', 700);
+    check(!!$('[data-act="handsgrade"][data-g="good"]'), 'the frame stays usable when nothing is heard');
+    check(/le chat|le chien|la maison|l'eau|le |la |un |une /.test($('.card .face')?.textContent || ''), 'the French is on the card to be said', $('.card .face')?.textContent.trim().slice(0, 60));
+    await click('[data-act="handsgrade"][data-g="good"]', 300);
+    check(profile().stats.reviews === 1, 'and a manual Got it grades the card', String(profile().stats.reviews));
+  }
+
+  // ---- 106. a slash goes to the search box ----
+  await boot();
+  doc().dispatchEvent(new frame.contentWindow.KeyboardEvent('keydown', { key: '/', bubbles: true }));
+  await wait(80);
+  check(doc().activeElement?.id === 'q', 'typing / focuses search', doc().activeElement?.id);
+
+  // ---- 107. pictures live in IndexedDB and come back whole ----
+  await boot();
+  await click('[data-act="import"]', 250);
+  const gif = 'data:image/gif;base64,R0lGODlhAQABAAAAACw=';
+  doc().getElementById('paste').value = JSON.stringify({ title: 'Media Test', cards: [
+    { front: 'What is this?', back: 'a dot', image: gif }, { front: 'plain', back: 'card' }] });
+  await click('[data-act="paste"]', 300);
+  await click('[data-act="commit"]', 700);
+  const onDisk = state().custom.find(m => m.id === 'media-test')?.cards[0].image;
+  check(String(onDisk).startsWith('idb:'), 'the JSON on disk carries a pointer, not the picture', String(onDisk).slice(0, 24));
+  check(await media(onDisk) === gif, 'and the picture itself is in the store');
+  frame.src = './index.html?selftest';
+  await new Promise(r => frame.onload = r);
+  await waitFor('[data-act="open"]');
+  await click('[data-act="open"][data-id="media-test"]', 300);
+  await click('[data-act="browse"]', 300);
+  check($('.cardimg')?.getAttribute('src') === gif, 'after a reload the card shows its picture again');
+  await click('[data-act="back"]', 200);
+  await click('[data-game="recall"]', 300);
+  for (let i = 0; i < 6 && $('[data-act="flip"]'); i++) { await click('[data-act="flip"]', 60); await click('[data-g="good"]', 100); }
+  check(!!profile().srs[cardKey('media-test', { front: 'What is this?', image: gif })],
+    'the picture card keeps the identity it had, so its progress survives', Object.keys(profile().srs).join(','));
+
+  // ---- 108. the reminder defaults to when you are sharp ----
+  await boot();
+  {
+    const st = JSON.parse(localStorage.getItem('pit.v1'));
+    const p = st.profiles[st.active];
+    const at = h => { const d = new Date(); d.setDate(d.getDate() - 1); d.setHours(h, 0, 0, 0); return d.getTime(); };
+    p.stats.sessions = [
+      ...Array.from({ length: 3 }, (_, i) => ({ t: at(8) - i * 60000, m: 'x', g: 'recall', r: 10, w: 0, secs: 60 })),
+      ...Array.from({ length: 3 }, (_, i) => ({ t: at(20) - i * 60000, m: 'x', g: 'recall', r: 3, w: 7, secs: 60 })),
+    ];
+    localStorage.setItem('pit.v1', JSON.stringify(st));
+  }
+  frame.src = './index.html?selftest';
+  await new Promise(r => frame.onload = r);
+  await waitFor('[data-act="open"]');
+  await click('[data-act="settings"]', 300);
+  await click('[data-act="remindme"]', 300);
+  check(doc().getElementById('dlg')?.value === '08:00', 'a morning learner is offered a morning reminder', doc().getElementById('dlg')?.value);
+  await click('.sheet-box [data-cancel]', 200);
+
   // ---- 17. a Match board completes, mistakes and all ----
   await boot();
   await click('[data-act="open"][data-id="world-capitals"]');
@@ -2088,6 +2390,7 @@ try {
   bad('the run stopped early', e.message);
 } finally {
   restore();
+  await mediaCleanup();
   frame.src = 'about:blank';
   const el = document.getElementById('summary');
   el.textContent = `${pass} passed, ${fail} failed — your data has been restored`;

@@ -22,6 +22,17 @@
   --barbg: rgba(242, 246, 250, .85); --cardring: rgba(21, 34, 44, .08);
   color-scheme: light;
 }
+/* High contrast: black ground, white ink, hard edges, nothing translucent. */
+:root[data-theme="contrast"] {
+  --bg: #000000; --sunk: #000000; --edge: #ffffff; --line: #ffffff;
+  --surface: #000000; --raised: #111111; --well: #111111; --glow: #000000;
+  --ink: #ffffff; --dim: #e6e6e6;
+  --cyan: #66ffff; --copper: #ffdd99; --good: #88ff88; --bad: #ff9999;
+  --cyanbg: #001122; --coppbg: #221100; --goodbg: #002200;
+  --goodline: #88ff88; --badline: #ff9999; --coppline: #ffdd99;
+  --barbg: #000000; --cardring: #ffffff;
+  color-scheme: dark;
+}
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { height: 100%; }
 body {
@@ -547,3 +558,31 @@ h1:focus { outline: none; }   /* focused for orientation only, not a control */
   .btn, .opt, .tile, .game, .chip { border-width: 2px; }
   .tile-sub, .lede, small { color: var(--dim); }
 }
+
+/* Write it: a miss letter by letter */
+.verdict .typed { font-size: .9rem; color: var(--dim); margin: 6px 0 0; }
+.verdict del { color: var(--bad); text-decoration: line-through; }
+.verdict ins { color: var(--good); text-decoration: underline; text-underline-offset: 3px; }
+
+/* Order it */
+.steps { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 14px; }
+ol.steps { list-style: none; padding: 0; margin: 14px 0 0; flex-direction: column; align-items: stretch; counter-reset: step; }
+ol.steps li { display: flex; align-items: center; gap: 10px; counter-increment: step; }
+ol.steps li::before { content: counter(step); color: var(--dim); font-size: .8rem; width: 1.2em; text-align: right; }
+.step {
+  min-height: 44px; border-radius: 12px; background: var(--raised); color: var(--ink); font: inherit;
+  border: 1px solid var(--line); padding: 8px 14px; cursor: pointer;
+}
+ol.steps .step { flex: 1; text-align: left; }
+.step:disabled { opacity: .25; }
+ol.steps .step:disabled { opacity: 1; }
+.step.empty { display: block; border-style: dashed; background: none; }
+.step.right { border-color: var(--good); color: var(--good); }
+.step.wrong { border-color: var(--bad); color: var(--bad); }
+
+/* Pictures found on Commons, offered in the editor */
+.pics.found { grid-template-columns: repeat(3, 1fr); margin-top: 8px; }
+.pics.found .pictile { min-height: 0; padding: 4px; }
+.pics.found .cardimg { max-height: 90px; width: 100%; object-fit: cover; }
+
+.lede.sweep { color: var(--copper); }

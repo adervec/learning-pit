@@ -247,8 +247,13 @@ export function deadlinePlan(cards, srs, moduleId, deadline, now = Date.now()) {
   const daysLeft = Math.max(0, Math.ceil((end - now) / DAY));
   const c = counts(cards, srs, moduleId, now);
   const remaining = c.fresh + c.due;              // not yet learned, or waiting to be re-seen
-  if (end < now) return { daysLeft: 0, remaining, perDay: remaining, passed: true };
-  return { daysLeft, remaining, perDay: Math.ceil(remaining / Math.max(1, daysLeft)), passed: false };
+  if (end < now) return { daysLeft: 0, remaining, perDay: remaining, passed: true, end, beyond: 0, sweep: false };
+  // Cards the schedule has pushed past the date would never be seen again before it. In the
+  // final three days the caller treats every scheduled card as due (pickSession with `now` at
+  // infinity), soonest first, so each is asked once more.
+  const beyond = cards.filter(x => { const s = srs[cardKey(moduleId, x)]; return s && !s.susp && s.due > end; }).length;
+  return { daysLeft, remaining, perDay: Math.ceil(remaining / Math.max(1, daysLeft)), passed: false,
+    end, beyond, sweep: daysLeft <= 3 };
 }
 
 /** Every due card across a set of modules, oldest first, tagged with where it came from. */
@@ -742,7 +747,7 @@ export function validateModule(m) {
   if (!name) throw new Error('module needs an "id" or "title"');
   if (!Array.isArray(m.cards) || !m.cards.length) throw new Error(`${name}: needs a non-empty "cards" array`);
   if (m.cards.length > 2000) throw new Error(`${name}: too many cards (max 2000)`);
-  const cards = m.cards.map((c, i) => {
+  const cards = m.cards.flatMap(expandCloze).map((c, i) => {
     if (!c || typeof c !== 'object') throw new Error(`${name}: card ${i + 1} is not an object`);
     const front = str(c.front ?? c.q ?? c.question, 2000);
     const back = str(c.back ?? c.a ?? c.answer, 4000);
@@ -908,9 +913,11 @@ function parseDelimited(t) {
   const lines = t.split('\n').map(l => l.trim()).filter(l => l && !/^[-=_*]{3,}$/.test(l));
   if (!lines.length) return null;
   let best = null;
+  // "{{c1::Paris}}" carries a :: of its own; blank it (same length, so indexes still line up).
+  const at = (l, d) => (d === '::' ? l.replace(/\{\{[^}]*\}\}/g, m => ' '.repeat(m.length)) : l).indexOf(d);
   for (const d of DELIMS) { // earlier delimiters are the more deliberate ones: first match wins
     const hits = lines.filter(l => {
-      const i = l.indexOf(d);
+      const i = at(l, d);
       return i > 0 && l.slice(i + d.length).trim();
     });
     if (hits.length / lines.length >= 0.6) { best = { d, hits }; break; }
@@ -925,7 +932,7 @@ function parseDelimited(t) {
       const [front, back, hint, note] = splitFields(l, best.d).map(clean);
       return { front, back, hint: hint || undefined, note: note || undefined };
     }
-    const i = l.indexOf(best.d);
+    const i = at(l, best.d);
     return { front: clean(l.slice(0, i)), back: clean(l.slice(i + best.d.length)) };
     // "Q: something" is a marker with no answer, not a term and its definition. A bare "a"
     // is only a marker after a colon — with `::` or a dash it is a legitimate term.
@@ -934,6 +941,34 @@ function parseDelimited(t) {
     // whose front happens to be the word "Front" with a real answer behind it is a card.
     && !(/^(question|answer|front|back)$/i.test(c.front) && /^(question|answer|front|back)$/i.test(c.back))
     && !(best.d === ': ' && /^[qa]$/i.test(c.front)));
+}
+
+// Anki's cloze syntax: "The capital of France is {{c1::Paris}}" — one card per numbered gap,
+// the gap shown as […] on the front and its text as the back; "{{c1::Paris::city}}" carries a
+// hint. An Anki "back extra" field becomes the note. Claude writes this shape too.
+const CLOZE = /\{\{c(\d+)::([^}]*?)(?:::([^}]*?))?\}\}/g;
+function expandCloze(card) {
+  if (!card || typeof card !== 'object') return [card];
+  const text = String(card.front ?? card.text ?? card.q ?? card.question ?? '');
+  const spans = [...text.matchAll(CLOZE)];
+  if (!spans.length) return [card];
+  const extra = String(card.back ?? card.a ?? card.answer ?? '').trim();
+  return [...new Set(spans.map(m => m[1]))].map(n => ({
+    ...card,
+    front: text.replace(CLOZE, (_, k, ans) => (k === n ? '[…]' : ans)),
+    back: spans.filter(m => m[1] === n).map(m => m[2].trim()).join(', '),
+    hint: spans.find(m => m[1] === n && m[3])?.[3] || card.hint,
+    note: card.note || extra || undefined,
+  }));
+}
+
+// One cloze sentence per line — how an Anki cloze deck pastes, and how Claude writes one.
+function parseClozeLines(t) {
+  const lines = t.split('\n').map(l => l.trim()).filter(Boolean);
+  const hits = lines.filter(l => /\{\{c\d+::/.test(l));
+  if (!hits.length || hits.length < lines.length * 0.6) return null;
+  // A tab after the sentence is Anki's "back extra" column; expandCloze turns it into the note.
+  return hits.map(l => { const [front, extra] = l.split('\t'); return { front: clean(front), back: clean(extra) }; });
 }
 
 // Two lines per card, blank line between — the shape a plain list of prompts takes.
@@ -986,7 +1021,7 @@ export function parseImport(text, fallbackTitle = '') {
   if (sections.length > 1) {
     const built = sections
       .map(sec => {
-        const found = parseTable(sec.body) || parseQA(sec.body) || parsePairs(sec.body) || parseDelimited(sec.body);
+        const found = parseTable(sec.body) || parseClozeLines(sec.body) || parseQA(sec.body) || parsePairs(sec.body) || parseDelimited(sec.body);
         return found && found.length
           ? validateModule({ title: sec.title, description: sec.description, cards: found })
           : null;
@@ -997,7 +1032,7 @@ export function parseImport(text, fallbackTitle = '') {
   // Headings name the module; they are never cards. Left in, a heading and the line under it
   // look exactly like a two-line pair to the glossary parser.
   const body = t.replace(/^#{1,6}\s+.*$/gm, '').trim();
-  const cards = parseTable(body) || parseQA(body) || parsePairs(body) || parseDelimited(body);
+  const cards = parseTable(body) || parseClozeLines(body) || parseQA(body) || parsePairs(body) || parseDelimited(body);
   if (!cards || cards.length < 1) {
     throw new Error('No cards found. Use JSON, a markdown table, Q:/A: lines, or "front :: back" per line.');
   }
@@ -1075,4 +1110,172 @@ export function mergeState(local, remote) {
   }
   out.custom = [...byId.values()];
   return out;
+}
+
+// ---- hints, diffs, guesses, the long view, sequences, the ladder ----
+
+/**
+ * A hint the author did not write: the first letter of each word and a slot for every letter
+ * after it — "P _ _ _ _" for Paris. Only for answers short enough that the shape is a clue
+ * rather than a sentence; a long answer returns null and the button is simply not offered.
+ */
+export function maskHint(answer) {
+  const a = String(answer).trim();
+  if (!a || a.length > 24 || a.split(/\s+/).length > 3) return null;
+  return a.split(/\s+/)
+    .map(w => [...w].map((ch, i) => (i === 0 || !/[\p{L}\p{N}]/u.test(ch) ? ch : '_')).join(' '))
+    .join('   ');
+}
+
+/**
+ * Where a typed answer went wrong, letter by letter: an LCS alignment, case-insensitive.
+ * Letters of the guess that are not in the answer come back flagged false, and so do letters
+ * of the answer the guess never had. For showing, never for grading — judgeTyped grades.
+ * Null for anything long enough that the picture would be noise anyway.
+ */
+export function diffChars(guess, answer) {
+  const a = [...String(guess)], b = [...String(answer)];
+  const n = a.length, m = b.length;
+  if (!n || !m || n * m > 40000) return null;
+  const eq = (x, y) => x.toLowerCase() === y.toLowerCase();
+  const L = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      L[i][j] = eq(a[i], b[j]) ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+    }
+  }
+  const ga = a.map(ch => [ch, false]), gb = b.map(ch => [ch, false]);
+  for (let i = 0, j = 0; i < n && j < m;) {
+    if (eq(a[i], b[j])) { ga[i][1] = gb[j][1] = true; i++; j++; }
+    else if (L[i + 1][j] >= L[i][j + 1]) i++;
+    else j++;
+  }
+  return { guess: ga, answer: gb };
+}
+
+/**
+ * The seconds under which a *wrong* answer was a guess rather than an attempt — a third of
+ * this learner's pace, kept within sane bounds. The twin of slowAfter: a laboured right
+ * answer is over-trusted by the schedule, a snap wrong one never tried to retrieve at all.
+ */
+export function quickBefore(sessions) {
+  return Math.max(1.5, Math.min(4, pace(sessions) / 3));
+}
+
+/** The last twelve months, for the long view: reviews, days with any, accuracy, busiest month. */
+export function yearSummary(stats, now = Date.now()) {
+  const days = stats.days || {}, hits = stats.hits || {};
+  const months = new Map();
+  let reviews = 0, correct = 0, active = 0;
+  for (let i = 0; i < 365; i++) {
+    const key = dayStr(now - i * DAY);
+    const n = days[key] || 0;
+    if (!n) continue;
+    reviews += n;
+    correct += hits[key] || 0;
+    active++;
+    const mo = key.slice(0, 7);
+    months.set(mo, (months.get(mo) || 0) + n);
+  }
+  const top = [...months].sort((a, b) => b[1] - a[1])[0];
+  return { reviews, active, pct: reviews ? Math.round((100 * correct) / reviews) : 0,
+    busiest: top ? { month: top[0], n: top[1] } : null };
+}
+
+/**
+ * An answer that is a sequence — "Mercury → Venus → Earth", "mix; knead; prove; bake" — as its
+ * items, or null. Commas only count when the question itself asks for an order, because
+ * "a fruit, red, sweet" is a description, not a sequence. Three to eight distinct items.
+ */
+export function listItems(card) {
+  const back = String(card.back || '').trim();
+  let parts = back.split(/\s*(?:→|->|;|\n)\s*/);
+  if (parts.length < 3
+    && /\b(order|sequence|steps?|stages?|first|then|before|after|smallest|largest|from\b.*\bto)\b/i.test(String(card.front || ''))) {
+    parts = back.split(/\s*,\s*(?:then\s+|and\s+)?/);
+  }
+  parts = parts.map(p => p.replace(/^\d+[.)]\s*/, '').trim()).filter(Boolean);
+  if (parts.length < 3 || parts.length > 8) return null;
+  return new Set(parts.map(p => p.toLowerCase())).size === parts.length ? parts : null;
+}
+
+/**
+ * Which exercise a card has earned. New: recognise it among options. Young: fill a blank in
+ * the answer. Mature: produce it — typed when the answer is short, recalled and self-graded
+ * when it is not. A miss resets reps, so a missed card drops back to the first rung by itself.
+ * Kid mode never types, so its ladder is recognise, then recall.
+ */
+export function ladderRung(s, card, { kid = false, poolSize = 0 } = {}) {
+  const choice = poolSize >= 4 || (card.options?.length || 0) >= 3 ? 'choice' : 'recall';
+  if (!s || !s.reps) return choice;
+  if (kid) return 'recall';
+  if (s.interval < 7) return cloze(card.back, () => 0) ? 'cloze' : choice;
+  return String(card.back).trim().length <= 40 ? 'type' : 'recall';
+}
+
+/**
+ * Everything a coach or a daily/weekly brief needs about one learner, in one object: the
+ * streak and the lifetime figures, the week and the year, five weeks of days, the due pile and
+ * its forecast, every module and where it stands, the last fifty sittings with their times, the
+ * sticking points, the mix-ups, the parked cards and the family board. Pure — hand it the
+ * profiles, the visible modules and the clock. A few kilobytes; never a card's whole text.
+ */
+export function briefPayload({ profiles = {}, active = '', modules = [], now = Date.now() } = {}) {
+  const p = profiles[active] || {};
+  const srs = p.srs || {}, st = p.stats || {}, opts = p.opts || {};
+  const sessions = st.sessions || [];
+  const today = dayStr(now);
+  const weekSecs = sessions
+    .filter(s => s.t > now - 7 * DAY && s.secs > 0 && s.secs < 4 * 3600)
+    .reduce((n, s) => n + s.secs, 0);
+  const days = Array.from({ length: 35 }, (_, i) => {
+    const d = dayStr(now - i * DAY);
+    return { day: d, reviews: (st.days || {})[d] || 0, correct: (st.hits || {})[d] || 0 };
+  }).reverse();
+  const due = dueAcross(modules, srs, now);
+  const per = m => {
+    const c = counts(m.cards, srs, m.id, now);
+    const mine = sessions.filter(s => s.m === m.title);
+    const asked = mine.reduce((n, s) => n + (s.r || 0) + (s.w || 0), 0);
+    const right = mine.reduce((n, s) => n + (s.r || 0), 0);
+    const last = mine.reduce((t, s) => Math.max(t, s.t || 0), 0);
+    const date = (opts.deadlines || {})[m.id];
+    const plan = date ? deadlinePlan(m.cards, srs, m.id, date, now) : null;
+    return {
+      id: m.id, title: m.title, tags: m.tags || [],
+      cards: c.total, learned: c.learned, due: c.due, new: c.fresh, paused: c.paused,
+      accuracy: asked >= 10 ? Math.round((100 * right) / asked) : null,
+      lastStudied: last ? new Date(last).toISOString() : null,
+      deadline: plan ? { date, daysLeft: plan.daysLeft, perDay: plan.perDay, remaining: plan.remaining,
+        beyond: plan.beyond, passed: plan.passed } : null,
+    };
+  };
+  const parked = [];
+  for (const m of modules) {
+    for (const c of m.cards) if (srs[cardKey(m.id, c)]?.susp) parked.push({ question: c.front, module: m.title });
+  }
+  return {
+    learner: { name: active, kid: !!opts.kid, goal: opts.goal ?? 20, doneToday: (st.days || {})[today] || 0,
+      today, tzOffsetMinutes: new Date(now).getTimezoneOffset() },
+    stats: { streak: st.streak || 0, bestStreak: st.bestStreak || 0, lastDay: st.lastDay || null,
+      rested: st.rested || null, reviews: st.reviews || 0, correct: st.correct || 0,
+      accuracy: st.reviews ? Math.round((100 * st.correct) / st.reviews) : null,
+      rank: st.rank || null, stars: st.stars || 0 },
+    week: { ...weekSummary(st, now), minutes: Math.round(weekSecs / 60) },
+    year: yearSummary(st, now),
+    days,
+    due: { now: due.length, minutes: due.length ? minutesFor(due.length, sessions) : 0,
+      modules: new Set(due.map(c => c.mid)).size, forecast30: forecast(modules, srs, 30, now) },
+    pace: { secondsPerCard: pace(sessions), bestTime: bestTime(sessions) },
+    modules: modules.map(per),
+    sittings: sessions.slice(0, 50).map(s => ({ at: new Date(s.t).toISOString(), module: s.m, game: s.g,
+      right: s.r || 0, wrong: s.w || 0, seconds: s.secs ?? null })),
+    stuck: troubleSpots(modules, srs, 15).map(l => ({ question: l.card.front, answer: l.card.back,
+      module: l.module.title, lapses: l.lapses, recentMisses: l.misses })),
+    confusions: (st.confusions || []).slice(0, 15),
+    starred: starred(modules, srs).length,
+    parked: parked.slice(0, 10),
+    family: Object.keys(profiles).length > 1
+      ? weeklyTotals(profiles, now).map(f => ({ name: f.name, reviews7d: f.total })) : [],
+  };
 }

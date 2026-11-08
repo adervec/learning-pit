@@ -1,6 +1,6 @@
 import { STICKERS, auditModule, bestTime, bumpStreak, cardKey, cloze, counts, coverage, dayStr, deadlinePlan, decoys, distractors, dueAcross, duplicatesAcross, esc, examScore, examSet, fmt, forecast, growPrompt, hash, ident, judgeTyped,
   letterTiles, mergeConfusions, mergeState, minutesFor, newCards, parseImport, pickSession, rankFor, reminderIcs, schedule, sharpenPrompt, shuffle, slowAfter, spellable, spreadDue, tagTotals, starred, toMarkdown, stickerEarned, troubleSpots,
-  stickersFor, validateModule, weekSummary, weeklyTotals } from './core.js';
+  stickersFor, validateModule, weekSummary, weeklyTotals, maskHint, diffChars, quickBefore, yearSummary, listItems, ladderRung, briefPayload } from './core.js';
 
 const KEY = 'pit.v1';
 const app = document.getElementById('app');
@@ -77,19 +77,96 @@ function read() {
     return s && s.profiles ? Object.assign(blank(), s) : blank();
   } catch { return blank(); }
 }
-let warnedFull = false;
-function save({ sync = true } = {}) {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(state));
-  } catch (e) {
-    // Out of storage: reviews would silently stop persisting, so say so loudly once.
-    if (!warnedFull) {
-      warnedFull = true;
-      toast('Storage is full — progress is not being saved. Export a backup, then remove a module.', 'Settings', () => go({ name: 'settings' }));
-    }
-    return;
+
+// ---- media store ----
+// localStorage holds about 5 MB and one picture module can pass that by itself. In memory, in
+// a backup, in a share and in a sync the state keeps its shape — card.image and card.audio are
+// inline data URIs — but on disk each blob lives once in IndexedDB and the JSON carries a
+// pointer. The serialiser swaps them out; hydrate() puts them back at boot.
+// ponytail: hash + length as the key — a 32-bit hash alone would collide eventually.
+const MEDIA = 'pit.media';
+const stored = new Set();          // blob keys already written, so a save does not rewrite them
+const blobKey = v => 'idb:' + hash(v) + v.length.toString(36);
+const isMedia = (k, v) => (k === 'image' || k === 'audio') && typeof v === 'string' && v.startsWith('data:');
+function mediaDb() {
+  return new Promise((res, rej) => {
+    if (!window.indexedDB) return rej(new Error('no IndexedDB'));
+    const r = indexedDB.open(MEDIA, 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('blobs');
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function mediaPut(entries) {
+  const db = await mediaDb();
+  await new Promise((res, rej) => {
+    const tx = db.transaction('blobs', 'readwrite');
+    for (const [k, v] of entries) tx.objectStore('blobs').put(v, k);
+    tx.oncomplete = res;
+    tx.onerror = () => rej(tx.error);
+  });
+  db.close();
+  for (const [k] of entries) stored.add(k);
+}
+async function mediaGet(keys) {
+  const out = new Map();
+  if (!keys.length) return out;
+  const db = await mediaDb();
+  await Promise.all(keys.map(k => new Promise(res => {
+    const r = db.transaction('blobs').objectStore('blobs').get(k);
+    r.onsuccess = () => { if (r.result) out.set(k, r.result); res(); };
+    r.onerror = () => res();
+  })));
+  db.close();
+  return out;
+}
+// The state as it goes to disk: pointers where the blobs were, and the blobs still to write.
+function serialize() {
+  const pending = new Map();
+  const json = JSON.stringify(state, (k, v) => {
+    if (!isMedia(k, v)) return v;
+    const key = blobKey(v);
+    if (!stored.has(key)) pending.set(key, v);
+    return key;
+  });
+  return { json, pending };
+}
+// Blobs back into the cards. Only custom modules carry media. A pointer with no blob behind
+// it is left as it is rather than dropped — the picture is part of the card's identity.
+async function hydrate() {
+  const keys = new Set();
+  for (const m of state.custom || []) {
+    for (const c of m.cards || []) for (const f of ['image', 'audio']) if (String(c[f] || '').startsWith('idb:')) keys.add(c[f]);
   }
-  if (sync) queueSync();
+  if (!keys.size) return;
+  const got = await mediaGet([...keys]).catch(() => new Map());
+  for (const m of state.custom || []) {
+    for (const c of m.cards || []) for (const f of ['image', 'audio']) if (got.has(c[f])) { stored.add(c[f]); c[f] = got.get(c[f]); }
+  }
+}
+
+let warnedFull = false;
+let mediaOk = !!window.indexedDB;
+function save({ sync = true } = {}) {
+  const write = json => {
+    try {
+      localStorage.setItem(KEY, json);
+    } catch (e) {
+      // Out of storage: reviews would silently stop persisting, so say so loudly once.
+      if (!warnedFull) {
+        warnedFull = true;
+        toast('Storage is full — progress is not being saved. Export a backup, then remove a module.', 'Settings', () => go({ name: 'settings' }));
+      }
+      return;
+    }
+    if (sync) queueSync();
+  };
+  if (!mediaOk) return write(JSON.stringify(state));
+  const { json, pending } = serialize();
+  if (!pending.size) return write(json);
+  // New blobs reach IndexedDB first, so a pointer on disk never points at nothing. If the
+  // store is unavailable (private mode, an old browser) the state is written inline instead.
+  mediaPut([...pending]).then(() => write(json), () => { mediaOk = false; write(JSON.stringify(state)); });
 }
 function P() {
   if (!state.profiles[state.active]) state.profiles[state.active] = newProfile();
@@ -467,9 +544,9 @@ function applyTextSize() {
 function applyTheme() {
   const t = opt().theme;
   const light = t === 'light' || (t === 'auto' && LIGHT.matches);
-  document.documentElement.dataset.theme = light ? 'light' : 'dark';
+  document.documentElement.dataset.theme = t === 'contrast' ? 'contrast' : light ? 'light' : 'dark';
   document.querySelector('meta[name="theme-color"]')
-    ?.setAttribute('content', light ? '#f2f6fa' : '#06080b');
+    ?.setAttribute('content', t === 'contrast' ? '#000000' : light ? '#f2f6fa' : '#06080b');
 }
 LIGHT.addEventListener('change', () => { if (opt().theme === 'auto') applyTheme(); });
 
@@ -804,6 +881,7 @@ function eligibleGames(m, group) {
   return Object.entries(GAMES).filter(([, g]) =>
     (!group || g.group === group)
     && (!g.needs || g.needs())
+    && (!g.module || g.module(m))
     && (!opt().kid || g.kid !== false)
     && (g.filter ? m.cards.filter(g.filter).length : m.cards.length) >= g.min);
 }
@@ -812,7 +890,7 @@ function eligibleGames(m, group) {
 // only the ones that suit them rather than a wall of choices.
 function gameList(m, group) {
   const entries = Object.entries(GAMES).filter(([, g]) =>
-    g.group === group && (!g.needs || g.needs()) && (!opt().kid || g.kid !== false));
+    g.group === group && (!g.needs || g.needs()) && (!g.module || g.module(m)) && (!opt().kid || g.kid !== false));
   if (!entries.length) return '';
   // A game is offered only if enough of this module's cards actually suit it. With sixteen
   // of them, the ones that cannot run are a footnote rather than a wall of dead buttons.
@@ -851,9 +929,12 @@ function deadlineBar(m) {
     return `<p class="warn">That deadline has passed. ${plan.remaining
       ? `${plan.remaining} cards never got learned — clear the date or set a new one.` : 'Everything was learned in time.'}</p>`;
   }
-  if (!plan.remaining) return `<p class="lede">Ready — every card is learned with ${plan.daysLeft} day${plan.daysLeft === 1 ? '' : 's'} to spare.</p>`;
+  const sweep = plan.sweep && plan.beyond
+    ? `<p class="lede sweep">Final stretch: ${plan.beyond} card${plan.beyond === 1 ? ' is' : 's are'} scheduled past the date,
+      so each is asked once more before it.</p>` : '';
+  if (!plan.remaining) return `<p class="lede">Ready — every card is learned with ${plan.daysLeft} day${plan.daysLeft === 1 ? '' : 's'} to spare.</p>${sweep}`;
   return `<p class="lede">${plan.remaining} cards left, ${plan.daysLeft} day${plan.daysLeft === 1 ? '' : 's'} to go —
-    <b>${plan.perDay} a day</b> from here.</p>
+    <b>${plan.perDay} a day</b> from here.</p>${sweep}
     <div class="goal"><i style="width:${Math.min(100, Math.round((doneToday / plan.perDay) * 100))}%"></i></div>`;
 }
 
@@ -913,6 +994,7 @@ function results() {
     }
     save();
     portalActivity(session.startedAt);
+    pushCoach();
     blip(stars >= 2 ? 'win' : 'good');
     if (session.sticker) toast(`New sticker: ${session.sticker.emoji} ${session.sticker.name}`);
     if (session.promoted) toast(`You are now ${session.promoted}.`);
@@ -982,6 +1064,12 @@ function results() {
       <p class="lede small-note">Answers that took well over your usual pace. The schedule
       thinks these are safe; the hesitation says otherwise.</p>
       <div class="list">${[...new Map(session.slow.map(c => [c.front, c])).values()].slice(0, 6)
+        .map(c => `<div class="li missed"><span><b>${fmt(c.front)}</b><em>${fmt(c.back)}</em></span></div>`)
+        .join('')}</div>` : ''}
+    ${session.quick?.length ? `<h2>Wrong in a flash</h2>
+      <p class="lede small-note">Answered in under ${quickBefore(P().stats.sessions)} seconds, and wrong — a guess, or a
+      blank. The attempt to retrieve is the learning; give these a moment next time.</p>
+      <div class="list">${[...new Map(session.quick.map(c => [c.front, c])).values()].slice(0, 6)
         .map(c => `<div class="li missed"><span><b>${fmt(c.front)}</b><em>${fmt(c.back)}</em></span></div>`)
         .join('')}</div>` : ''}
     ${session.missed?.length ? `<h2>Worth another look</h2>
@@ -1330,8 +1418,14 @@ function editView(id) {
             ${c.image ? `<img class="thumb" src="${esc(c.image)}" alt="">` : ''}
             <label class="btn ghost">${c.image ? 'Replace' : 'Add a picture'}
               <input class="sr" type="file" accept="image/*" id="cardpic"></label>
+            ${navigator.onLine ? '<button class="ghost sm" data-act="findpic">Find one</button>' : ''}
             ${c.image ? '<button class="ghost sm" data-act="delpic">Remove</button>' : ''}
           </div>
+          ${view.found ? `<p class="lede small-note">${view.found.length
+            ? 'From Wikimedia Commons — tap one to use it. The card keeps a link to where it came from.'
+            : 'Nothing found for that — try another word.'}</p>
+          <div class="pics found">${view.found.map((f, i) => `<button class="pictile" data-act="usepic" data-i="${i}"
+            aria-label="${esc(f.title)}"><img class="cardimg" src="${esc(f.thumb)}" alt="" loading="lazy"></button>`).join('')}</div>` : ''}
         </div>
         <div class="row">
           <button class="btn" data-act="savecard" data-i="${i}">Save</button>
@@ -1519,6 +1613,15 @@ function timeOfDayLine() {
     against ${t.worst.pct}% ${esc(t.worst.name)}.</p>`;
 }
 
+// The long view, once there is one: a month of days is where a week stops being the story.
+function yearLine() {
+  const y = yearSummary(P().stats);
+  if (y.active < 30) return '';
+  const when = y.busiest ? new Date(y.busiest.month + '-15T12:00:00').toLocaleDateString(undefined, { month: 'long' }) : '';
+  return `<p class="lede">Last twelve months: <b>${y.reviews}</b> reviews on ${y.active} days, <b>${y.pct}%</b> right${
+    when ? `, busiest in ${esc(when)}` : ''}.</p>`;
+}
+
 function recapText() {
   const w = weekSummary(P().stats), st = P().stats;
   const rank = rankFor(learnedCount()).rank;
@@ -1594,6 +1697,7 @@ function progressView() {
     ${rankLine()}
     ${recapLine()}
     ${timeOfDayLine()}
+    ${yearLine()}
     <h2>Activity</h2>
     <div class="heat" role="img" aria-label="Reviews per day over the last 17 weeks. ${
       Object.values(days).reduce((a, b) => a + b, 0)} reviews on ${Object.keys(days).length} days.">${cells.join('')}</div>
@@ -1663,15 +1767,31 @@ function coachHash(t) {
 const COACH_INSTRUCTIONS = [
   '# Learning Pit - coach channel',
   '',
-  'A learner is working through their own flashcard modules with spaced repetition.',
-  'Read `coach/request.json`:',
+  'A learner is working through their own flashcard modules with spaced repetition. The app',
+  'rewrites `coach/request.json` after every finished sitting and whenever the progress screen',
+  'is opened, so it is always current; `generatedAt` says how current. It is built to be read',
+  'as a whole by a coach, a daily brief or a weekly brief - nothing else needs opening.',
   '',
-  '- `payload.stats` - streak, lifetime reviews, accuracy, this week, rank.',
-  '- `payload.modules` - each module: title, cards, learned, due now, accuracy.',
-  '- `payload.forecast` - reviews falling due over the next 30 days.',
-  '- `payload.sittings` - the last sittings: module, game, right, wrong, seconds.',
-  '- `payload.stuck` - the questions that keep going wrong, and how often.',
-  '- `payload.confusions` - pairs of answers they mix up with each other.',
+  'Read `coach/request.json`, `payload`:',
+  '',
+  '- `learner` - name, kid mode, daily goal, cards done today, today\'s local date, timezone.',
+  '- `stats` - streak, best streak, last day studied, rest day spent, lifetime reviews and',
+  '  accuracy, rank, stars.',
+  '- `week` - the last 7 days: reviews, correct, active days, best day, accuracy, minutes.',
+  '- `year` - the last 12 months: reviews, active days, accuracy, busiest month.',
+  '- `days` - the last 35 days, oldest first, each `{day, reviews, correct}` (local dates):',
+  '  compare yesterday with today, this week with last, without touching anything else.',
+  '- `due` - the pile now: count, minutes at this learner\'s pace, modules involved, and',
+  '  `forecast30`, reviews falling due per day for the next 30 days.',
+  '- `pace` - seconds per card, and the part of the day they answer best and worst in.',
+  '- `modules` - each visible module: id, title, tags, cards, learned, due, new, paused,',
+  '  accuracy from its own sittings, when it was last studied, and its deadline plan if any.',
+  '- `sittings` - the last fifty, newest first: time (ISO), module, game, right, wrong, seconds.',
+  '- `stuck` - the questions that keep going wrong, with their answers and how often.',
+  '- `confusions` - pairs of answers they mix up with each other.',
+  '- `starred` - how many cards they marked to come back to; `parked` - cards taken out of',
+  '  rotation after repeated misses, which usually need rewriting.',
+  '- `family` - reviews this week per learner, when several share the device.',
   '',
   'Write `coach/reply.json`:',
   '',
@@ -1682,51 +1802,58 @@ const COACH_INSTRUCTIONS = [
   '  failing. Warm and practical. Never scold a missed day.>" }',
   '```'
 ].join('\n');
-function mountCoach() {
-  const host = document.getElementById('coachhost');
-  const out = document.getElementById('coachreply');
+// The one panel behind the folder. A brief that reads yesterday's numbers is no brief, so once
+// a folder has been connected the request is rewritten after every finished sitting — from a
+// hidden panel mounted at boot — and on every visit to the progress screen.
+let coachPanel = null;
+const COACH_FLAG = 'pit.cowork';
+function coachConfig(show) {
+  return {
+    app: 'learning-pit',
+    manifest: { protocol: 'cowork-manifest', protocolVersion: 1, app: 'learning-pit',
+      channels: [{ name: 'coach', request: ['coach/request.json'],
+        instructions: 'coach/INSTRUCTIONS.md', replyPath: 'coach/reply.json' }] },
+    files: () => {
+      const payload = briefPayload({ profiles: state.profiles, active: state.active, modules: visible() });
+      return {
+        'coach/request.json': { protocol: 'learning-pit-coach', protocolVersion: 2,
+          kind: 'coach-request', generatedAt: new Date().toISOString(),
+          requestHash: coachHash(JSON.stringify(payload)), payload },
+        'coach/INSTRUCTIONS.md': COACH_INSTRUCTIONS,
+      };
+    },
+    apply: (ch, reply) => {
+      const t = typeof reply === 'string' ? reply
+        : (reply && (reply.reply || (reply.payload && reply.payload.reply)))
+          || JSON.stringify(reply, null, 2);
+      try { localStorage.setItem('pit.coachreply', t); } catch { /* quota */ }
+      show(t);
+    },
+  };
+}
+// The panel restores its folder on its own, asynchronously. Once a channel shows a request on
+// disk the folder is live: remember that for the next boot, and write fresh numbers now.
+function watchCoach(panel) {
+  let tries = 0;
+  const t = setInterval(() => {
+    const live = (panel.channels || []).some(c => c.request_mtime > 0);
+    if (live || ++tries > 16) clearInterval(t);
+    if (live) {
+      try { localStorage.setItem(COACH_FLAG, '1'); } catch { /* private mode */ }
+      panel.push('coach');
+    }
+  }, 250);
+}
+// After a sitting: fresh numbers for whoever reads the folder. A no-op with no folder.
+function pushCoach() { coachPanel?.push?.('coach'); }
+function mountCoach(host = document.getElementById('coachhost'), out = document.getElementById('coachreply')) {
   if (!host || host.childElementCount) return;
-  const show = t => { out.textContent = t || ''; out.style.display = t ? 'block' : 'none'; };
+  const show = t => { if (!out) return; out.textContent = t || ''; out.style.display = t ? 'block' : 'none'; };
   try { show(localStorage.getItem('pit.coachreply') || ''); } catch { /* private mode */ }
   loadCowork().then(cw => {
     if (!cw || host.childElementCount) return;
-    cw.mount(host, {
-      app: 'learning-pit',
-      manifest: { protocol: 'cowork-manifest', protocolVersion: 1, app: 'learning-pit',
-        channels: [{ name: 'coach', request: ['coach/request.json'],
-          instructions: 'coach/INSTRUCTIONS.md', replyPath: 'coach/reply.json' }] },
-      files: () => {
-        const p = P(), st = p.stats, now = Date.now();
-        const payload = {
-          stats: { streak: st.streak || 0, bestStreak: st.bestStreak || 0,
-            reviews: st.reviews || 0, correct: st.correct || 0, rank: st.rank || null,
-            accuracy: st.reviews ? Math.round((st.correct / st.reviews) * 100) : null },
-          modules: visible().map(m => {
-            const c = counts(m.cards, p.srs, m.id, now);
-            return { title: m.title, cards: c.total, learned: c.learned, due: c.due };
-          }),
-          forecast: forecast(visible(), p.srs, 30, now),
-          sittings: (st.sessions || []).slice(0, 20).map(s => ({ module: s.m, game: s.g,
-            right: s.r, wrong: s.w, seconds: s.secs })),
-          stuck: troubleSpots(visible(), p.srs).slice(0, 15).map(l => ({ question: l.card.front,
-            module: l.module.title, lapses: l.lapses, recentMisses: l.misses })),
-          confusions: (st.confusions || []).slice(0, 15),
-        };
-        return {
-          'coach/request.json': { protocol: 'learning-pit-coach', protocolVersion: 1,
-            kind: 'coach-request', generatedAt: new Date().toISOString(),
-            requestHash: coachHash(JSON.stringify(payload)), payload },
-          'coach/INSTRUCTIONS.md': COACH_INSTRUCTIONS,
-        };
-      },
-      apply: (ch, reply) => {
-        const t = typeof reply === 'string' ? reply
-          : (reply && (reply.reply || (reply.payload && reply.payload.reply)))
-            || JSON.stringify(reply, null, 2);
-        try { localStorage.setItem('pit.coachreply', t); } catch { /* quota */ }
-        show(t);
-      },
-    });
+    coachPanel = cw.mount(host, coachConfig(show));
+    watchCoach(coachPanel);
   });
 }
 
@@ -1779,7 +1906,7 @@ function settings() {
     </label>` : ''}
     <label class="row"><input type="checkbox" data-opt="sound" ${opt().sound ? 'checked' : ''}> Sound effects</label>
     <label class="row">Look
-      <select data-opt="theme">${[['auto', 'Follow the device'], ['dark', 'Always dark'], ['light', 'Always light']]
+      <select data-opt="theme">${[['auto', 'Follow the device'], ['dark', 'Always dark'], ['light', 'Always light'], ['contrast', 'High contrast']]
         .map(([v, l]) => `<option value="${v}" ${opt().theme === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
     </label>
     <label class="row">Reading speed
@@ -1864,7 +1991,8 @@ function settings() {
 async function usageLine() {
   const el = document.getElementById('usage');
   if (!el) return;
-  const kb = Math.round((localStorage.getItem(KEY) || '').length / 1024);
+  // Everything, pictures and recordings included — they live in IndexedDB, but they are still weight.
+  const kb = Math.round(JSON.stringify(state).length / 1024);
   const cards = modules.reduce((n, m) => n + m.cards.length, 0);
   const persisted = await navigator.storage?.persisted?.().catch(() => false);
   el.textContent = `${cards} cards in ${modules.length} modules · ${kb} KB stored`
@@ -1879,8 +2007,8 @@ async function usageLine() {
     .sort((a, b) => b.kb - a.kb)
     .slice(0, 5);
   if (!weighed.length) return;
-  box.innerHTML = `<p class="lede small-note">Storage is getting heavy. The big ones — pictures
-    and recordings are usually why:</p>
+  box.innerHTML = `<p class="lede small-note">The heaviest modules — pictures and recordings, usually.
+    They are kept apart from your progress, so they cannot crowd it out:</p>
     <div class="list">${weighed.map(x => `<div class="li">
       <button class="rowbtn" data-act="edit" data-id="${esc(x.m.id)}">
         <span>${esc(x.m.title)}</span><em>${x.kb} KB</em></button>
@@ -1968,11 +2096,11 @@ function hushSpeech() {
 const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recog = null;
 
-function listen(onResult) {
+function listen(onResult, lang) {
   if (!SpeechRec) return;
   if (recog) { recog.abort(); recog = null; }
   const r = recog = new SpeechRec();
-  r.lang = navigator.language || 'en-US';
+  r.lang = lang || navigator.language || 'en-US';
   r.interimResults = false;
   r.maxAlternatives = 3;
   r.onresult = e => {
@@ -2028,6 +2156,8 @@ function grade(card, g) {
   const took = (answeredAt - (session.lastAnswerAt || session.startedAt || answeredAt)) / 1000;
   session.lastAnswerAt = answeredAt;
   if (g !== 'again' && took > slowAfter(p.stats.sessions)) (session.slow ||= []).push(card);
+  // And a wrong one in a flash never tried: a guess or a blank, and either way not retrieval.
+  if (g === 'again' && session.key !== 'speed' && took < quickBefore(p.stats.sessions)) (session.quick ||= []).push(card);
   // Exam mode scores the sitting without touching the schedule, the streak or the stats.
   if (g === 'again') (session.missed ||= []).push(card);
   if (session.exam) {
@@ -2144,6 +2274,9 @@ function clearCardState(s) {
   s.shown = false;
   s.said = '';
   s.claim = null;
+  s.peek = false;
+  s.sub = null;
+  s.steps = null;
 }
 
 function progress() {
@@ -2163,6 +2296,7 @@ function progress() {
       ${onCard ? `<button class="undo" data-act="starcard">${
         P().srs[cardKey(session.module.id, session.queue[0])]?.star ? '★ starred' : '☆ star it'}</button>` : ''}
       ${onCard ? '<button class="undo" data-act="parkcard">⏻ park it</button>' : ''}
+      ${onCard ? '<button class="undo" data-act="snooze">⏾ not today</button>' : ''}
       ${onCard && (session.right + session.wrong) > 0
         ? '<button class="undo" data-act="endsitting">✔ end here</button>' : ''}
     </div>`;
@@ -2189,7 +2323,7 @@ const GAMES = {
         <div class="pit">
           <button class="card ${s.flipped ? 'flipped' : ''}" data-act="flip" aria-label="Flip card">
             <div class="face">${pic(c)}${fmt(s.flipped ? c.back : c.front)}
-              ${!s.flipped && c.hint ? `<small class="hint">${esc(c.hint)}</small>` : ''}
+              ${!s.flipped && (c.hint || s.peek) ? `<small class="hint">${esc(c.hint || maskHint(c.back))}</small>` : ''}
               ${s.flipped ? note(c) : ''}${from(c)}</div>
             <span class="tap">${s.flipped ? '' : 'tap to reveal'}</span>
           </button>
@@ -2199,10 +2333,10 @@ const GAMES = {
           <button class="btn again" data-act="grade" data-g="again">👎 Not yet</button>
           <button class="btn good" data-act="grade" data-g="good">👍 Got it</button>
         </div>` : `<div class="row grades">
-          <button class="btn again" data-act="grade" data-g="again">Again</button>
-          <button class="btn good" data-act="grade" data-g="good">Good</button>
-          <button class="btn easy" data-act="grade" data-g="easy">Easy</button>
-        </div>`) : `<div class="row"><button class="btn wide" data-act="flip">Reveal</button></div>`}`;
+          <button class="btn again" data-act="grade" data-g="again">Again${dueIn(c, 'again')}</button>
+          <button class="btn good" data-act="grade" data-g="good">Good${dueIn(c, 'good')}</button>
+          <button class="btn easy" data-act="grade" data-g="easy">Easy${dueIn(c, 'easy')}</button>
+        </div>`) : `${peekLine(c)}<div class="row"><button class="btn wide" data-act="flip">Reveal</button></div>`}`;
       speak(s.flipped ? c.back : c.front);
     },
   },
@@ -2288,7 +2422,8 @@ const GAMES = {
       app.innerHTML = `
         ${progress()}
         <div class="pit small">
-          <div class="card static"><div class="face">${pic(c)}${fmt(c.front)}${from(c)}</div></div>
+          <div class="card static"><div class="face">${pic(c)}${fmt(c.front)}
+            ${s.peek && !v ? `<small class="hint">${esc(maskHint(c.back))}</small>` : ''}${from(c)}</div></div>
           <button class="speak" data-act="speak" aria-label="Read aloud">🔊</button>
         </div>
         <form id="typef" class="row">
@@ -2297,10 +2432,10 @@ const GAMES = {
           ${v ? '' : mic()}
           ${v ? '' : '<button class="btn" type="submit">Check</button>'}
         </form>
-        ${v ? '' : '<button class="linky skip" data-act="skip">skip this one</button>'}
+        ${v ? '' : '<button class="linky skip" data-act="skip">skip this one</button>' + peekLine(c)}
         ${v ? `<div class="verdict ${v}">
           <b>${v === 'exact' ? 'Correct' : v === 'close' ? 'Close enough' : 'Not this time'}</b>
-          <p>${fmt(c.back)}</p>${note(c)}
+          ${typedDiff(s.guess, c.back, v)}${note(c)}
           ${v === 'wrong' ? '<button class="linky" data-act="override">I actually had it — count it</button>' : ''}
         </div>
         <div class="row"><button class="btn wide" data-act="next">Continue</button></div>` : ''}`;
@@ -2437,6 +2572,77 @@ const GAMES = {
           });
         });
       }
+    },
+  },
+
+  // Shadowing, for a module in another language: the cue is on the front, the thing to say is
+  // on the back — hear it said properly, then say it yourself and see which words came out.
+  // Recognition runs in the module's own language.
+  sayit: {
+    label: 'Say it', glyph: '🗣', hint: 'Hear it, then say it yourself', min: 1, group: 'drill',
+    needs: () => !!SpeechRec && !!window.speechSynthesis,
+    module: m => !!m.lang,
+    start(s) { s.queue = s.cards.slice(); s.total = s.queue.length; s.phase = 'ask'; s.verdict = null; s.heard = ''; },
+    frame() {
+      const s = session, c = s.queue[0];
+      if (!c) return finish();
+      const cov = s.heard ? coverage(c.back, s.heard) : null;
+      const status = { ask: 'Listen…', listening: 'Your turn — say it', verdict: '' }[s.phase] || '';
+      app.innerHTML = `
+        ${progress()}
+        <div class="pit">
+          <div class="card static ${s.phase === 'listening' ? 'flipped' : ''}"><div class="face">
+            ${pic(c)}<small class="prompt">${fmt(c.front)}</small>${fmt(c.back)}
+            ${cov?.points.length ? `<div class="hits">${cov.points.map(p =>
+              `<span class="hit ${cov.hit.includes(p) ? 'got' : 'miss'}">${esc(p)}</span>`).join('')}</div>` : ''}
+            ${s.heard ? `<small class="from">heard: ${esc(s.heard)}</small>` : ''}
+          </div></div>
+        </div>
+        <p class="lede center ${s.phase === 'listening' ? 'pulsing' : ''}">${status}</p>
+        <div class="row grades">
+          <button class="btn again" data-act="handsgrade" data-g="again">Not yet</button>
+          <button class="btn" data-act="handsrepeat">Say it again</button>
+          <button class="btn good" data-act="handsgrade" data-g="good">Got it</button>
+        </div>`;
+      if (s.phase === 'ask') {
+        s.phase = 'asking';
+        speak(c.back, true, () => {
+          if (session !== s || view.name !== 'session' || s.queue[0] !== c) return;
+          s.phase = 'listening';
+          render();
+          listen(alternatives => {
+            if (session !== s || s.queue[0] !== c) return;
+            // Content words matter, not every article; a two-word phrase has none, so fall back
+            // to the typed judge for it.
+            const score = t => { const cv = coverage(c.back, t); return cv.points.length ? cv.pct : (judgeTyped(t, c.back) === 'wrong' ? 0 : 100); };
+            const best = alternatives.map(t => ({ t, pct: score(t) })).sort((a, b) => b.pct - a.pct)[0];
+            s.heard = best.t;
+            s.verdict = best.pct >= 70 ? 'exact' : 'wrong';
+            s.phase = 'verdict';
+            grade(c, s.verdict === 'wrong' ? 'again' : 'good');
+            render();
+            const on = () => { if (session === s && s.queue[0] === c) ACT.handsnext(); };
+            if (s.verdict === 'wrong') speak(c.back, true, on, c); else setTimeout(on, 900);
+          }, s.module.lang);
+        }, c);
+      }
+    },
+  },
+
+  // Each card asked the way it has earned: new ones recognised among options, young ones with
+  // a blank, mature ones produced from nothing. The frame belongs to whichever game the card
+  // is on; this only decides which, once per appearance, and lets that game draw.
+  ladder: {
+    label: 'Ladder', glyph: '⟋', hint: 'Each card asked the way it has earned', min: 1, group: 'drill',
+    start(s) { s.queue = s.cards.slice(); s.total = s.queue.length; },
+    frame() {
+      const s = session, c = s.queue[0];
+      if (!c) return finish();
+      if (!s.sub) {
+        s.sub = ladderRung(P().srs[cardKey(s.module.id, c)], c,
+          { kid: opt().kid, poolSize: new Set(s.pool.map(x => x.back)).size });
+      }
+      GAMES[s.sub].frame();
     },
   },
 
@@ -2666,6 +2872,42 @@ const GAMES = {
     },
   },
 
+  // A sequence is a different kind of knowing: the steps are easy, the order is the point.
+  order: {
+    label: 'Order it', glyph: '⇵', hint: 'Put the steps in the right order', min: 1, group: 'play',
+    filter: c => !!listItems(c),
+    start(s) { s.queue = s.cards.slice(); s.total = s.queue.length; s.steps = null; s.verdict = null; },
+    frame() {
+      const s = session, c = s.queue[0];
+      if (!c) return finish();
+      if (!s.steps) {
+        const items = listItems(c);
+        let deal = shuffle(items);
+        if (deal.join('|') === items.join('|')) deal = deal.reverse();   // never dealt already solved
+        s.steps = { items, deal, placed: [] };
+      }
+      const { items, deal, placed } = s.steps;
+      const v = s.verdict;
+      app.innerHTML = `
+        ${progress()}
+        <div class="pit small">
+          <div class="card static"><div class="face">${pic(c)}${fmt(c.front)}${from(c)}</div></div>
+          <button class="speak" data-act="speak" aria-label="Read aloud">🔊</button>
+        </div>
+        <ol class="steps placed">${items.map((_, n) => n < placed.length
+          ? `<li><button class="step ${v ? (deal[placed[n]] === items[n] ? 'right' : 'wrong') : ''}"
+              data-act="ounstep" data-n="${n}" ${v ? 'disabled' : ''}>${fmt(deal[placed[n]])}</button></li>`
+          : '<li><span class="step empty"></span></li>').join('')}</ol>
+        <div class="steps">${deal.map((t, i) => `<button class="step" data-act="ostep" data-i="${i}"
+          ${placed.includes(i) || v ? 'disabled' : ''}>${fmt(t)}</button>`).join('')}</div>
+        ${v ? `<div class="verdict ${v}"><b>${v === 'wrong' ? 'The order is' : 'Yes'}</b>
+            ${v === 'wrong' ? `<p>${items.map(fmt).join(' → ')}</p>` : ''}${note(c)}</div>
+          <div class="row"><button class="btn wide" data-act="next">Continue</button></div>`
+        : placed.length === items.length ? '<div class="row"><button class="btn wide" data-act="ocheck">Check</button></div>' : ''}`;
+      speak(c.front);
+    },
+  },
+
   speed: {
     label: 'Speed round', glyph: '⏱', hint: 'One minute, as many as you can', min: 4, group: 'play',
     start(s) {
@@ -2760,10 +3002,13 @@ function startGame(id, key) {
   // module keeps drawing sessions it has to throw away.
   const eligible = g.filter ? m.cards.filter(g.filter) : m.cards;
   // Exam: the whole module in one go, and nothing it does touches the schedule.
+  // In the last days before a deadline every scheduled card counts as due, soonest first — the
+  // ones the schedule had pushed past the date would otherwise never be seen before it.
+  const now = plan?.sweep ? Infinity : Date.now();
   const cards = view.exam
     ? shuffle(eligible).slice(0, key === 'match' ? 6 : 100)
     : pickSession(eligible, P().srs, m.id,
-        sizes[key] || { size: Math.max(opt().size, newPerSession), newPerSession });
+        { ...(sizes[key] || { size: Math.max(opt().size, newPerSession), newPerSession }), now });
   launch(m, key, view.rev ? cards.map(flip) : cards, view.rev ? m.cards.map(flip) : m.cards, view.exam,
     () => startGame(id, key));
 }
@@ -2850,6 +3095,27 @@ const note = c => (c.note ? `<p class="note">${fmt(c.note)}</p>` : '')
 const host = u => { try { return new URL(u).host; } catch { return 'the source'; } };
 const pic = c => c.image ? `<img class="cardimg" src="${esc(c.image)}" alt="" loading="lazy">` : '';
 
+// What each grade would do to the card — "3 days" under Good — so the buttons say what they
+// mean. Not in an exam, where nothing is scheduled; a child gets two big buttons instead.
+const inDays = n => n < 1 ? 'today' : n === 1 ? '1 day' : n < 30 ? `${n} days` : n < 365 ? `${Math.round(n / 30)} months` : '1 year';
+function dueIn(c, g) {
+  if (session.exam) return '';
+  if (g === 'again') return '<small>10 min</small>';
+  const next = schedule(P().srs[cardKey(session.module.id, c)], g, Date.now(), () => 0.5);
+  return `<small>${inDays(next.interval)}</small>`;
+}
+// A hint nobody wrote — the shape of the answer — offered only where the answer has one.
+const peekLine = c => (!c.hint && !session.peek && maskHint(c.back)
+  ? '<button class="linky skip" data-act="peek">need a hint?</button>' : '');
+// A miss shown letter by letter: what was typed with the stray letters struck out, the answer
+// with the missed ones marked. Only for a real wrong answer short enough to read that way.
+function typedDiff(guess, answer, v) {
+  const d = v === 'wrong' && guess.trim() && answer.length <= 60 ? diffChars(guess.trim(), answer) : null;
+  if (!d) return `<p>${fmt(answer)}</p>`;
+  const mark = (arr, tag) => arr.map(([ch, ok]) => (ok ? esc(ch) : `<${tag}>${esc(ch)}</${tag}>`)).join('');
+  return `<p class="typed">you typed <span>${mark(d.guess, 'del')}</span></p><p>${mark(d.answer, 'ins')}</p>`;
+}
+
 // ---------------- actions ----------------
 
 const ACT = {
@@ -2867,8 +3133,8 @@ const ACT = {
       + '1–4 — pick an option or a picture · t / f — true or false · '
       + 'digits and enter — the number pad · '
       + 'ctrl/⌘ + enter — check a write-up · s — star this card · u — undo the last answer · '
-      + 'swipe a revealed card left or right · '
-      + 'esc — back · ? — this list',
+      + '1–8 — place the next step · swipe a revealed card left or right · '
+      + '/ — search the library · esc — back · ? — this list',
     ok: 'Got it',
   }),
   import: () => go({ name: 'import' }),
@@ -3276,7 +3542,10 @@ const ACT = {
   // app to grow a charting library.
   // No push server, so the calendar does the reminding: one .ics, repeating daily.
   remindme: async () => {
-    const t = ((await askText('Remind at what time? (24h, like 17:30)', '17:00')) || '').trim();
+    // Default to the part of the day this learner actually answers best in, once that is known.
+    const best = bestTime(P().stats.sessions || [])?.best.name;
+    const t = ((await askText('Remind at what time? (24h, like 17:30)',
+      { morning: '08:00', afternoon: '14:00', evening: '19:00', 'late at night': '22:00' }[best] || '17:00')) || '').trim();
     if (!t) return;
     const ics = reminderIcs(t, location.origin + location.pathname);
     if (!ics) return toast('That is not a time — try 17:30.');
@@ -3309,7 +3578,8 @@ ${toMarkdown(visible())}`;
   wipe: async () => {
     if (!await askYes('Erase every profile, module and setting on this device? Export a backup first if you want one.', 'Erase')) return;
     for (const k of ['pit.v1', 'pit.session', 'pit.wasSignedIn', 'pit.mockdrive']) localStorage.removeItem(k);
-    location.reload();
+    try { indexedDB.deleteDatabase(MEDIA); } catch { /* nothing to delete */ }
+    setTimeout(() => location.reload(), 300);
   },
   signout: async () => {
     // Hand the token back rather than just forgetting it — this is a family device.
@@ -3350,7 +3620,43 @@ ${toMarkdown(visible())}`;
     if (!playClip(c)) speak(`${c.front}. ${c.back}`, true);
   },
   edit: el => { editable(el.dataset.id); go({ name: 'edit', id: el.dataset.id }); },
-  editcard: el => { view.editing = +el.dataset.i; render(); },
+  editcard: el => { view.editing = +el.dataset.i; view.found = null; render(); },
+  // A picture for a word, from Wikimedia Commons — finding pictures was the slow part of
+  // making a picture module. The one network call the editor makes, and only when asked; the
+  // chosen file is shrunk like any other, and the card keeps the file's page as its source,
+  // which is also where the credit lives.
+  findpic: async () => {
+    const m = editable(view.id), c = m?.cards[view.editing];
+    if (!c) return;
+    const q = ((await askText('Find a picture of…', c.back.length <= 30 ? c.back : c.front.slice(0, 30))) || '').trim();
+    if (!q) return;
+    say('Searching…');
+    try {
+      const u = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&generator=search'
+        + `&gsrnamespace=6&gsrlimit=8&gsrsearch=${encodeURIComponent('filetype:bitmap ' + q)}`
+        + '&prop=imageinfo&iiprop=url&iiurlwidth=320';
+      const r = await fetch(u);
+      if (!r.ok) throw new Error('Commons said ' + r.status);
+      const pages = Object.values((await r.json()).query?.pages || {});
+      view.found = pages
+        .map(p => ({ title: String(p.title || '').replace(/^File:/, ''), thumb: p.imageinfo?.[0]?.thumburl, page: p.imageinfo?.[0]?.descriptionurl }))
+        .filter(f => /^https:\/\//.test(f.thumb || '')).slice(0, 6);
+      render();
+    } catch (e) { showErr(new Error('Could not reach Wikimedia Commons — are you online?')); }
+  },
+  usepic: async el => {
+    const f = view.found?.[+el.dataset.i];
+    if (!f) return;
+    try {
+      const data = await shrinkImage(await (await fetch(f.thumb)).blob());
+      const target = editable(view.id), card = target.cards[view.editing];
+      card.image = data;
+      if (/^https:\/\//.test(f.page || '') && !card.source) card.source = f.page;
+      view.found = null;
+      say(`Picture added (${Math.round(data.length / 1024)} KB).`);
+      touch(target);
+    } catch (e) { showErr(new Error('That picture could not be fetched.')); }
+  },
   rec: () => {
     if (recorder) return recorder.stop();      // the change lands in the callback below
     recordClip(data => {
@@ -3650,7 +3956,7 @@ ${toMarkdown(visible())}`;
   reviewall: () => {
     const due = dueEverything();
     if (!due.length) return ACT.learnnew();
-    launch({ id: 'everything', title: 'Everything due', cards: due }, 'recall', due.slice(0, 20), null, false, ACT.reviewall);
+    launch({ id: 'everything', title: 'Everything due', cards: due }, 'ladder', due.slice(0, 20), null, false, ACT.reviewall);
   },
   // Overload relief. A returned-from-holiday pile teaches nothing but dread; dealt out over
   // the week it goes back to being a habit. Only what the learner can see moves.
@@ -3702,7 +4008,7 @@ ${toMarkdown(visible())}`;
     Object.assign(s, { right: u.right, wrong: u.wrong, done: u.done, undo: null });
     if (u.queue) s.queue = u.queue;
     if (u.missed) s.missed = u.missed; else delete s.missed;
-    s.flipped = false; s.opts = null; s.picked = null; s.verdict = null; s.guess = '';
+    s.flipped = false; s.opts = null; s.picked = null; s.verdict = null; s.guess = ''; s.sub = null; s.peek = false;
     save();
     render();
     say('Undone.');
@@ -3739,8 +4045,9 @@ ${toMarkdown(visible())}`;
     listen(alternatives => {
       const s = session;
       const card = s.queue[0];
-      const target = s.key === 'cloze' ? s.blank.answer : card.back;
-      const also = s.key === 'cloze' ? [] : card.alt;
+      const blank = (s.sub || s.key) === 'cloze';
+      const target = blank ? s.blank.answer : card.back;
+      const also = blank ? [] : card.alt;
       // Take the alternative the speech engine offered that scores best — "for" vs "four".
       const best = alternatives
         .map(t => ({ t, v: judgeTyped(t, target, also) }))
@@ -3749,7 +4056,7 @@ ${toMarkdown(visible())}`;
       render();
       const el = document.getElementById('ans');
       if (el) el.value = best.t;
-      ACT[s.key === 'cloze' ? 'checkblank' : 'check']();
+      ACT[blank ? 'checkblank' : 'check']();
     });
     render();
   },
@@ -3801,7 +4108,7 @@ ${toMarkdown(visible())}`;
     const s = session;
     const c = s.queue.shift();
     if (s.queue.length < 24) s.queue.push(c); else s.done++;   // seen later, not judged now
-    s.verdict = null; s.guess = ''; s.blank = null;
+    s.verdict = null; s.guess = ''; s.blank = null; s.peek = false; s.sub = null;
     render();
     say('Skipped.');
   },
@@ -3843,6 +4150,8 @@ ${toMarkdown(visible())}`;
     s.flipped = false;
     s.shown = false;
     s.said = '';
+    s.peek = false;
+    s.sub = null;
     render();
   },
   gospeed: () => { session.game.run(session); render(); },
@@ -3961,6 +4270,41 @@ ${toMarkdown(visible())}`;
     if (!session || session.right + session.wrong === 0) return;
     finish();
   },
+  peek: () => { session.peek = true; render(); },
+  // Not today: the card waits until tomorrow, ungraded. Skip brings it back inside the
+  // sitting and park removes it for good; this is the one in between.
+  snooze: () => {
+    const s = session, c = s.queue?.[0];
+    if (!c) return;
+    const p = P(), k = cardKey(s.module.id, c);
+    if (p.srs[k]) { p.srs[k].due = Math.max(p.srs[k].due, Date.now() + 86400000); p.srs[k].t = Date.now(); save(); }
+    s.queue = s.queue.filter(x => x !== c);     // a repeat already queued goes with it
+    s.done++;
+    clearCardState(s);
+    toast('Back tomorrow.');
+    render();
+  },
+  // Order it: tap the steps into place; the last one checks itself when it lands right.
+  ostep: el => {
+    const s = session, st = s.steps;
+    if (s.verdict || st.placed.includes(+el.dataset.i)) return;
+    st.placed.push(+el.dataset.i);
+    blip('good');
+    render();
+    if (st.placed.length === st.items.length && st.placed.every((i, n) => st.deal[i] === st.items[n])) ACT.ocheck();
+  },
+  ounstep: el => {
+    const s = session;
+    if (s.verdict) return;
+    s.steps.placed.splice(+el.dataset.n);       // this one and everything after it go back
+    render();
+  },
+  ocheck: () => {
+    const s = session, c = s.queue[0], { items, deal, placed } = s.steps;
+    s.verdict = placed.length === items.length && placed.every((i, n) => deal[i] === items[n]) ? 'exact' : 'wrong';
+    grade(c, s.verdict === 'wrong' ? 'again' : 'good');
+    render();
+  },
   // Park: out of rotation for good, until it is let back in from the module screen.
   parkcard: () => {
     const s = session, c = s.queue?.[0];
@@ -4015,7 +4359,7 @@ document.addEventListener('click', e => {
 let swipe = null;
 document.addEventListener('pointerdown', e => {
   const card = e.target.closest('.screen.session .card');
-  if (!card || !session?.flipped || session.key !== 'recall') return;
+  if (!card || !session?.flipped || (session.sub || session.key) !== 'recall') return;
   swipe = { x: e.clientX, y: e.clientY, card };
 });
 document.addEventListener('pointermove', e => {
@@ -4045,8 +4389,9 @@ document.addEventListener('keydown', e => {
   const typing = e.target instanceof Element && e.target.matches('input, textarea');
   if (e.key === 'Escape' && !typing) return back();
   if (e.key === '?' && !typing) return ACT.shortcuts();
+  if (e.key === '/' && !typing && document.getElementById('q')) { e.preventDefault(); return document.getElementById('q').focus(); }
   if (view.name !== 'session') return;
-  const s = session, k = e.key;
+  const s = session, k = e.key, mode = s.sub || s.key;   // the ladder draws another game's frame
   // Starring is the one session tool safe to put on a key: it changes nothing but a mark.
   if (k.toLowerCase() === 's' && !typing && document.querySelector('[data-act="starcard"]')) {
     e.preventDefault();
@@ -4057,16 +4402,25 @@ document.addEventListener('keydown', e => {
     return ACT.undo();
   }
   const hit = sel => { const el = document.querySelector(sel); if (el && !el.disabled) { e.preventDefault(); el.click(); } };
-  if (s.key === 'recall') {
+  if (mode === 'recall') {
     if (typing) return;
     if (k === ' ' || k === 'Enter') return hit(s.flipped ? '[data-g="good"]' : '[data-act="flip"]');
     if (s.flipped && '123'.includes(k)) return hit(`[data-g="${['again', 'good', 'easy'][+k - 1]}"]`);
-  } else if (s.key === 'choice') {
+  } else if (mode === 'choice') {
     if (typing) return;
     if ('1234'.includes(k)) return hit(`[data-i="${+k - 1}"]`);
     if (k === 'Enter' || k === ' ') return hit('[data-act="next"]');
-  } else if (s.key === 'type' && k === 'Enter' && s.verdict) {
+  } else if ((mode === 'type' || mode === 'cloze') && k === 'Enter' && s.verdict) {
     return hit('[data-act="next"]');
+  } else if (mode === 'order') {
+    if (typing) return;
+    // 1–8 places the nth step still waiting; enter checks, then moves on.
+    if (/^[1-8]$/.test(k)) {
+      const left = [...document.querySelectorAll('[data-act="ostep"]:not([disabled])')];
+      if (left[+k - 1]) { e.preventDefault(); left[+k - 1].click(); }
+      return;
+    }
+    if (k === 'Enter' || k === ' ') return hit(s.verdict ? '[data-act="next"]' : '[data-act="ocheck"]');
   } else if (s.key === 'study') {
     if (typing) return;
     if (s.phase === 'show') return (k === ' ' || k === 'Enter') ? hit('[data-act="studynext"]') : undefined;
@@ -4104,6 +4458,7 @@ addEventListener('beforeinstallprompt', e => {
   // A brand-new device asks who it is for before it shows a library.
   if (!state.settings.setup && !(P().stats.reviews || 0) && !location.hash) view = { name: 'setup' };
   render();
+  await hydrate();          // pictures and recordings back from IndexedDB before anything reads a card
   await Promise.all([
     loadModules(),
     fetch('config.json', { cache: 'no-cache' })
@@ -4161,6 +4516,15 @@ addEventListener('beforeinstallprompt', e => {
 
   // Ask the browser not to evict a year of review history when storage runs low.
   navigator.storage?.persist?.().catch(() => {});
+
+  // A learner who has connected a cowork folder gets it kept current after every sitting,
+  // from a panel nobody sees. Only for them: everyone else never loads the script.
+  if (localStorage.getItem(COACH_FLAG) && !opt().kid && !location.search.includes('selftest')) {
+    const hidden = document.createElement('div');
+    hidden.hidden = true;
+    document.body.appendChild(hidden);
+    mountCoach(hidden, null);
+  }
 
   // Let the maker's app portal know (same-origin localStorage) that this app is installed.
   try {

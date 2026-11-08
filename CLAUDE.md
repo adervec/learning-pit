@@ -68,7 +68,10 @@ state  = { active, settings: {clientId, lastSync, lastBackup, nudged}, custom: [
   stamped by `setOpt()` whenever a setting is *chosen*, and is how sync decides which device's
   settings win — assigning to `opt().x` directly is for bookkeeping that should never win.
 - Card keys are content-derived (`hash(front)`, or front + NUL + image when a card has a
-  picture) so re-importing an edited module keeps history for unchanged cards. `card.mid`
+  picture) so re-importing an edited module keeps history for unchanged cards. Pictures and
+  recordings are inline `data:` URIs everywhere in memory, in exports and in sync; only on disk
+  does `save()` swap each for an `idb:` pointer into the `pit.media` IndexedDB store, and
+  `hydrate()` swaps them back at boot before anything computes a key. `card.mid`
   overrides the module id for mixed sessions — that is how a mock exam, a tag drill or a
   sticking-points drill grades each card back into its own module.
 - A module may carry `src`: the URL it was fetched from. *Check for new cards* refetches it
@@ -93,8 +96,11 @@ state  = { active, settings: {clientId, lastSync, lastBackup, nudged}, custom: [
   headings becomes several modules.
 - **A game**: one entry in `GAMES` — `label, glyph, hint, min, group: 'drill'|'play'`, plus
   optional `filter` (which cards it can use), `needs` (whether the device/profile can run it
-  at all), `kid: false` (hide it in kid mode), then `start(s)` and `frame()`. `frame()` re-runs
-  on every state change. Grade with `grade(card, 'again'|'good'|'easy')`.
+  at all), `module` (whether a given module suits it), `kid: false` (hide it in kid mode), then
+  `start(s)` and `frame()`. `frame()` re-runs on every state change. Grade with
+  `grade(card, 'again'|'good'|'easy')`. The ladder borrows other games' frames: it sets
+  `session.sub` to a game key and calls that frame, so anything that branches on `session.key`
+  (the keyboard handler, the mic) must read `session.sub || session.key`.
 - **A screen**: a render function, a line in `draw()`, and an entry in `ACT` to reach it.
 - **A setting**: a field in `opt()`'s defaults plus a `data-opt` control in `settings()`.
   Per-learner settings live in `profile.opts`, device-wide ones in `state.settings`. The

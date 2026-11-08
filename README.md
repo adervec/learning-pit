@@ -93,6 +93,7 @@ and code fences:
 | Numbered list | `1. **Mitosis** — division into two identical cells` |
 | Delimited | `front :: back`, also tab, `—`, `\|`, `:`, `-` |
 | Two-line blocks | question line, answer line, blank line between |
+| Anki cloze | `The capital of France is {{c1::Paris}}` — one card per gap, `{{c1::Paris::city}}` carries a hint, a tab-separated extra column becomes the note |
 
 Greetings above the cards and "let me know if you'd like more" below them are dropped, and a
 blank line ends an answer — so a whole reply can go in as-is.
@@ -135,13 +136,18 @@ robot spell it.
 
 A card can carry a **picture** (`image`): an inline `data:` URI or an `https:` URL, shown with
 the question. In the editor, *Add a picture* takes a photo or a file and shrinks it to 480px
-locally before storing — a 3 MB phone photo lands at around 30 KB. Nothing is uploaded. Picture
+locally before storing — a 3 MB phone photo lands at around 30 KB. Nothing is uploaded. *Find
+one* searches Wikimedia Commons for the word, offers six, and keeps the file's page as the
+card's source — finding pictures was the slow part of making a picture module. Pictures and
+recordings live in IndexedDB rather than beside the progress in localStorage, so a picture-heavy
+library no longer runs into the browser's five-megabyte wall; backups, shares and sync carry them
+inline as before. Picture
 plus *Spell it* is the combination that lets a child who cannot read yet use the app on their
 own. `tools/make-picture-module.py` draws the bundled set with nothing but Python's stdlib.
 
 ## Studying
 
-Sixteen exercises, all fed by the same scheduler. **▶ Just start** at the top of every module
+Nineteen exercises, all fed by the same scheduler. **▶ Just start** at the top of every module
 picks one the module can actually support — weighted towards drills, never the same one twice
 running, and never one that kid mode hides — so studying is one tap rather than a menu.
 
@@ -149,13 +155,15 @@ running, and never one that kid mode hides — so studying is one tap rather tha
 
 | | |
 |---|---|
-| **Recall** | flip the card, rate yourself Again / Good / Easy |
+| **Recall** | flip the card, rate yourself Again / Good / Easy — each button says what it would do (*1 day*, *3 days*), and a card with no hint of its own offers the shape of its answer, *P _ _ _ _*, on request |
+| **Ladder** | each card asked the way it has earned: new ones recognised among options, young ones with a blank in the answer, mature ones typed or recalled from nothing. A miss drops a card back to the first rung. **Review N due** is this |
 | **Study first** | six cards shown with their answers and notes, then asked back in a different order — the read-through and the drill in one sitting |
 | **Identify** | multiple choice, distractors drawn from the module and length-matched |
 | **Explain it** | free recall in writing; it marks which of the answer's key words you actually said and leaves the grade to you |
-| **Write it** | type the answer; typos, case, accents and articles are forgiven — but never a wrong answer the author listed in `options`, so *effect* typed for *affect* fails even at one letter's distance |
+| **Write it** | type the answer; typos, case, accents and articles are forgiven — but never a wrong answer the author listed in `options`, so *effect* typed for *affect* fails even at one letter's distance. A miss is shown letter by letter: what you typed with the stray letters struck out, the answer with the ones you missed marked |
 | **Fill the blank** | one word removed from the answer — the **bolded** term if the author marked one, otherwise a content word, never a function word |
 | **Hands free** | it asks aloud, you answer out loud — no reading, no typing |
+| **Say it** | for a module with a `lang`: hear the answer said properly, then say it yourself, and see which words came out. Recognition runs in that language |
 
 *Games — the same scheduler, more play:*
 
@@ -168,13 +176,15 @@ running, and never one that kid mode hides — so studying is one tap rather tha
 | **Number pad** | tap a numeric answer in on big keys, no keyboard covering half a tablet |
 | **Write it out** | a slate: write the answer with a finger, reveal it in faint outline to trace, then say whether you had it. Nothing here recognises handwriting — the eye that matters is already in the room |
 | **Spell it** | build a one-word answer from letter tiles |
+| **Order it** | an answer that is a sequence — *Mercury → Venus → Earth*, *mix; knead; prove; bake* — dealt as steps to tap into order. Commas count when the question asks for an order |
 | **Speed round** | one minute of multiple choice, auto-advancing |
 | **Match** | pair six prompts with their answers, no timer |
 
 An exercise a module can't support simply isn't offered, and the module screen names the ones
 it left out — *Fill the blank* needs multi-word answers, *Point at it* needs four pictures,
 *Number pad* needs numeric answers, *Explain it* needs answers with something in them, *Match*
-needs six cards, *Duel* needs two learners, *Sort* needs a second module to confuse it with.
+needs six cards, *Duel* needs two learners, *Sort* needs a second module to confuse it with,
+*Order it* needs sequence answers and *Say it* needs a module with a language.
 Sessions are sampled from the cards each exercise can actually use.
 
 *Hands free* and the 🎤 button in the typed games use the browser's speech recognition, so they
@@ -192,8 +202,9 @@ same answer.
 
 - A module screen shows how it has actually gone — *73% you get right* — once there are ten
   answers behind it, and how long a sitting on it will take.
-- **Review N due** on the home screen mixes everything due across every module; each card's
-  progress still lands back in its own module. It says how many it will ask now and roughly how
+- **Review N due** on the home screen mixes everything due across every module as a **Ladder**
+  sitting, so each card is asked the way it has earned; each card's progress still lands back in
+  its own module. It says how many it will ask now and roughly how
   long that takes — measured from your own last few sittings, not guessed — because a pile of
   forty is only frightening until you know it is four minutes of it. With nothing due it offers
   new cards instead.
@@ -228,6 +239,7 @@ same answer.
 - **★ star it** (or the `s` key) is the one thing the scheduler cannot work out for itself:
   *come back to this, whatever the algorithm thinks*.
 - **⏻ park it** takes a card out of rotation for good, until the editor lets it back in.
+- **⏾ not today** puts a card off until tomorrow, ungraded — the one between skip and park.
 - **✎ fix this card** opens the editor on that very card and drops you back into the same
   sitting when you're done.
 - Results end with **Again** and **Another way** — the same module rolled into a different
@@ -261,7 +273,9 @@ year.
   module's shelf tile too. The module screen then says
   how many a day that takes, sessions grow to hit that pace instead of the usual five new
   cards, and the home screen leads with the nearest deadline ahead of the ordinary due pile.
-  Deadlines are per learner, so two kids can have different exams on the same tablet.
+  In the last three days "due" comes to mean "due before the exam": a card the schedule had
+  pushed past the date, which you would otherwise never see again before it, is asked once
+  more. Deadlines are per learner, so two kids can have different exams on the same tablet.
 
 ## Progress
 
@@ -272,13 +286,26 @@ or answers ground out; a promotion is announced once.
 - **This week**: reviews, accuracy, how many of the seven days had anything in them, the best
   one — and *share it* hands the sentence to the system share sheet or the clipboard.
 - **When you are sharp**: once there are enough sittings to compare, which part of the day you
-  actually answer best in, and which one you are wasting.
+  actually answer best in, and which one you are wasting. The daily reminder defaults to it.
+- **Last twelve months**: once a month of days is in, the long view — reviews, days, accuracy,
+  busiest month.
 - A 17-week **activity heatmap**, the **next week's load** with a one-line 30-day outlook —
   *Next 30 days: 220 reviews, heaviest on Sep 2* — and **mastery** per module.
 - **Recent sittings**: the last eight — module, exercise, how long ago, and the score, green
   when it was clean. The heatmap says how much you studied; this says what. Exams are measured
   but never recorded as study.
 - **Sticking points**: the cards that keep going wrong, to drill, rewrite or pause on the spot.
+
+**Ask a tutor** (bottom of the progress screen) hands the whole picture to an agent through a
+folder on the device — the maker's cowork panel writes `coach/request.json` into a folder you
+pick, and shows whatever the agent writes back to `coach/reply.json`. The request is built to be
+read whole by a coach, a daily brief or a weekly brief: the learner and the day, streak and
+lifetime figures, the week and the year, thirty-five days of counts, the due pile and its
+thirty-day forecast, every module with its accuracy, last sitting and deadline plan, the last
+fifty sittings with their times, sticking points, mix-ups, starred and parked cards, and the
+family board. Once a folder is connected the file is rewritten after every finished sitting and
+on every visit to the progress screen, so it is never yesterday's. Nothing is uploaded; the
+folder is on this device.
 
 When every card in a module is resting, the module screen offers a **🎓 certificate** — the
 learner's name, the module, the date and their rank, laid out to print and put on the fridge.
@@ -317,18 +344,19 @@ score whether you build it or not.
 
 Every one of these is per learner, so one tablet can suit a four-year-old and an adult.
 
-- **Look** — follow the device, always dark, or always light. The whole interface is built from
-  a handful of colour tokens, so daylight is a palette swap rather than a second stylesheet, and
-  the bundled pictures are drawn on a transparent ground so they sit on either.
+- **Look** — follow the device, always dark, always light, or high contrast (black, white, hard
+  edges). The whole interface is built from
+  a handful of colour tokens, so each is a palette swap rather than a second stylesheet, and
+  the bundled pictures are drawn on a transparent ground so they sit on any of them.
 - **Text size** — small to very large, the same layouts just bigger, with no horizontal
   scrolling at any size.
 - **Read cards aloud** with a **voice** picked from whatever the device has installed (*Try it*
   speaks a sample), at a **reading speed** of slow, normal or quick.
 - **Sound effects**, **cards per session** (6–40), **daily goal**.
 - **Keyboard**: space or enter reveals and grades, 1/2/3 are Again/Good/Easy, 1–4 pick an option
-  or a picture, digits and enter drive the number pad, ctrl/⌘+enter checks a written recall,
-  `s` stars, `esc` goes back and `?` lists the lot. Every one of them has a button too —
-  nothing is gesture-only or key-only.
+  or a picture, 1–8 place the next step in *Order it*, digits and enter drive the number pad,
+  ctrl/⌘+enter checks a written recall, `s` stars, `/` jumps to search, `esc` goes back and `?`
+  lists the lot. Every one of them has a button too — nothing is gesture-only or key-only.
 - **Search** matches modules and cards, including their hints, notes and alternative answers, so
   a half-remembered detail is enough to find something again — and drills the matches directly
   (Enter in the box launches the drill).
@@ -380,7 +408,8 @@ twice, shuffled — telling them apart becomes the whole exercise.
 
 **Right, but slowly.** An answer that took three times your usual pace (measured, not guessed)
 is one the schedule is over-trusting; the results screen lists them, because fluent recall is
-the goal and hesitation is data.
+the goal and hesitation is data. Its twin is **Wrong in a flash**: a miss in under a third of
+your pace never tried to retrieve — a guess or a blank — and the attempt is the learning.
 
 Installed as an app, the icon carries a **badge** with the due count — the one reminder that
 costs nothing and nags nobody.
@@ -434,7 +463,7 @@ wrong, seconds — for whoever wants to make their own charts.
   Settings for the lot. **Restore backup** merges rather than overwrites, so restoring one
   tablet's backup onto another never wipes the second one's work.
 - If there is no sync and no backup and there is something worth losing, the app says so once a
-  month rather than letting a cleared cache take a year of reviews with it. And once the store
+  month rather than letting a cleared cache take a year of reviews with it. And once the library
   passes two megabytes, Settings lists which modules are carrying the weight — pictures and
   recordings, usually — each one tap from its editor.
 
@@ -479,7 +508,8 @@ GAMES.anagram = {
 `frame()` runs after every state change (no framework, no diffing — the screens are small).
 Anything user-supplied goes through `esc()` or `fmt()`. `ACT` holds the click handlers, keyed by
 `data-act`. `launch(module, key, cards)` starts a session on any card list, including a synthetic
-one. Optional `needs()` hides a game the device or profile can't run; `kid: false` hides it in
+one. Optional `needs()` hides a game the device or profile can't run; `module(m)` hides it for
+modules it does not suit (*Say it* wants a `lang`); `kid: false` hides it in
 kid mode. Add a case to `selftest.html` while you are there.
 
 ## Files
@@ -517,6 +547,7 @@ none of them is a surprise later:
 | **Last-write-wins sync**, per card | two devices answering the same card in the same minute lose one review | if that ever actually happens |
 | **No CSV quoting** in the importer | a comma inside a quoted field splits wrong | if someone pastes real CSV rather than JSON or a table |
 | **Editor caps at 200 rows** | filter to reach the rest of a huge module | if modules routinely run into the thousands |
+| **Media keyed by hash + length** | a 32-bit hash of a picture plus its length names it in IndexedDB | if two different pictures ever collide — a real digest is one line |
 | **Two-oscillator sounds** | no audio files to load or cache | if you want real sound design |
 | **Debounced sync, no retry queue** | a failed sync self-heals on the next save, and the bar shows ⚠ | if offline stretches get long |
 | **Dark theme only** | the pit is a pit | if a kid ends up using it in direct sunlight |
