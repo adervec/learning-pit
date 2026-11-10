@@ -2239,6 +2239,24 @@ try {
   const ink = frame.contentWindow.getComputedStyle(doc().body).color;
   check(ink === 'rgb(255, 255, 255)', 'and the ink is pure white', ink);
 
+  // ---- 101b. the house font: Atkinson by default, the reader's pick one setting away ----
+  // font.js is fetched from the maker's site, so offline there is nothing to judge.
+  const fontWas = localStorage.getItem('maker-font');
+  localStorage.removeItem('maker-font');
+  await boot();
+  const bodyFont = () => frame.contentWindow.getComputedStyle(doc().body).fontFamily;
+  if (frame.contentWindow.appFont) {
+    check(bodyFont().replace(/^["']/, '').startsWith('Atkinson Hyperlegible'), 'the default font is Atkinson Hyperlegible', bodyFont());
+    await click('[data-act="settings"]', 250);
+    doc().getElementById('fontpick').value = 'serif';
+    doc().getElementById('fontpick').dispatchEvent(new frame.contentWindow.Event('change', { bubbles: true }));
+    await wait(150);
+    check(bodyFont().startsWith('Georgia'), 'and Settings changes it', bodyFont());
+  } else {
+    check(!bodyFont().includes('Atkinson'), 'with font.js out of reach the old font stands', bodyFont());
+  }
+  if (fontWas === null) localStorage.removeItem('maker-font'); else localStorage.setItem('maker-font', fontWas);
+
   // ---- 102. Anki's cloze syntax pastes in as ordinary cards ----
   await boot();
   await click('[data-act="import"]', 250);

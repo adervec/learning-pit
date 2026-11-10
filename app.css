@@ -37,7 +37,8 @@
 html, body { height: 100%; }
 body {
   margin: 0; background: var(--bg); color: var(--ink);
-  font: 1rem/1.5 ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* --app-font comes from the shared font.js; where that cannot load, the old stack stands */
+  font: 1rem/1.5 var(--app-font, ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", sans-serif);
   display: flex; flex-direction: column; min-height: 100dvh; overscroll-behavior: none;
   background-image: radial-gradient(120% 70% at 50% -10%, var(--glow) 0%, var(--bg) 60%);
 }

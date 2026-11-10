@@ -1913,6 +1913,10 @@ function settings() {
       <select data-opt="rate">${[[0, 'Normal'], [0.7, 'Slow'], [1.15, 'Quick']]
         .map(([v, l]) => `<option value="${v}" ${(opt().rate || 0) === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
     </label>
+    ${window.appFont ? `<label class="row">Font
+      <select id="fontpick">${window.appFont.options
+        .map(o => `<option value="${esc(o.id)}" ${window.appFont.get() === o.id ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select>
+    </label>` : ''}
     <label class="row">Text size
       <select data-opt="text">${[[90, 'Small'], [100, 'Normal'], [115, 'Large'], [135, 'Very large']]
         .map(([v, l]) => `<option value="${v}" ${opt().text === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
@@ -1966,6 +1970,9 @@ function settings() {
       render();
     });
   }
+  // The font is the device's, shared with the maker's other apps on this origin — not a
+  // learner's setting, so it lives in font.js's own key rather than in opts.
+  document.getElementById('fontpick')?.addEventListener('change', e => window.appFont.set(e.target.value));
   usageLine();
   for (const el of app.querySelectorAll('[data-show]')) {
     el.addEventListener('change', e => {

@@ -6,8 +6,10 @@ server and it runs; copy the directory anywhere static and it's deployed.
 ## Rules that matter here
 
 - **No dependencies.** Not npm, not a CDN. If something needs a library, it probably
-  doesn't need to exist. The one external script is Google's `gsi/client`, loaded only
-  because it *is* the OAuth provider.
+  doesn't need to exist. The two external scripts are Google's `gsi/client`, loaded only
+  because it *is* the OAuth provider, and the maker's own `adervec.github.io/font.js` — the
+  house font shared by every app on that origin. It sets `--app-font`; `app.css` falls back
+  to the old stack when it cannot load, and nothing else may depend on it.
 - **No build step.** `app.js` and `core.js` are ES modules the browser loads directly.
   Anything that would require compiling is the wrong answer.
 - **Logic lives in `core.js` and is pure** — no DOM, no network, no `Date.now()` in
