@@ -1039,4 +1039,21 @@ assert.equal(listItems({ front: 'Repeat', back: 'a; b; a' }), null, 'repeated it
   assert.equal(briefPayload().modules.length, 0, 'an empty pit makes an empty brief, not an error');
 }
 
+// --- what ships: every bundled module is valid, and Order it and Say it each have something to deal ---
+{
+  const { readFileSync } = await import('node:fs');
+  const read = f => JSON.parse(readFileSync(new URL('./modules/' + f, import.meta.url), 'utf8'));
+  const shipped = read('index.json').modules.map(read);
+  assert.equal(new Set(shipped.map(m => m.id)).size, shipped.length, 'no two shipped modules share an id');
+  for (const m of shipped) {
+    const v = validateModule(m);
+    assert.equal(v.cards.length, m.cards.length, `${m.id}: every card survives validation`);
+    assert.equal(new Set(v.cards.map(c => cardKey(m.id, c))).size, v.cards.length, `${m.id}: no two cards share a key`);
+  }
+  assert.equal(duplicatesAcross(shipped.map(validateModule)).length, 0, 'no question ships in two modules');
+  const seq = shipped.find(m => m.id === 'in-order');
+  assert.ok(seq.cards.every(listItems), 'every In Order card is a sequence Order it can deal');
+  assert.ok(shipped.filter(m => m.lang).length >= 3, 'Say it has more than one language to work with');
+}
+
 console.log('core.js ok');

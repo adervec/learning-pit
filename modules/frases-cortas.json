@@ -1,0 +1,33 @@
+{
+  "id": "frases-cortas",
+  "title": "Frases Cortas",
+  "description": "Twenty small Spanish sentences you can actually say, read by a Spanish voice.",
+  "icon": "💬",
+  "tags": [
+    "language",
+    "phrases"
+  ],
+  "lang": "es",
+  "cards": [
+    { "front": "Good morning!", "back": "¡Buenos días!" },
+    { "front": "What is your name?", "back": "¿Cómo te llamas?" },
+    { "front": "I am called Leo.", "back": "Me llamo Leo." },
+    { "front": "I am eight years old.", "back": "Tengo ocho años.", "note": "Spanish *has* years rather than being them — tengo is \"I have\"." },
+    { "front": "Thank you very much.", "back": "Muchas gracias." },
+    { "front": "You're welcome.", "back": "De nada.", "note": "Literally \"of nothing\"." },
+    { "front": "I would like some water, please.", "back": "Quisiera agua, por favor." },
+    { "front": "Where is the bathroom?", "back": "¿Dónde está el baño?" },
+    { "front": "I don't know.", "back": "No lo sé.", "alt": ["no sé"] },
+    { "front": "Can you repeat that, please?", "back": "¿Puede repetir, por favor?" },
+    { "front": "I'm tired.", "back": "Estoy cansado.", "alt": ["estoy cansada"], "note": "Cansada if you are a girl or a woman." },
+    { "front": "I'm cold.", "back": "Tengo frío.", "note": "Cold, hunger and thirst are all things you *have*: tengo frío, tengo hambre, tengo sed." },
+    { "front": "What time is it?", "back": "¿Qué hora es?" },
+    { "front": "I like it a lot.", "back": "Me gusta mucho." },
+    { "front": "See you later.", "back": "Hasta luego." },
+    { "front": "I'm sorry!", "back": "¡Lo siento!", "alt": ["perdón"] },
+    { "front": "The dog is running.", "back": "El perro corre.", "alt": ["el perro está corriendo"] },
+    { "front": "It's sunny.", "back": "Hace sol.", "note": "Literally \"it makes sun\"." },
+    { "front": "Good night.", "back": "Buenas noches." },
+    { "front": "Where is the beach?", "back": "¿Dónde está la playa?" }
+  ]
+}

@@ -93,6 +93,45 @@
     {
       "front": "How do you get reminded to study without the app nagging you?",
       "back": "Settings makes a daily calendar event — the calendar does the reminding"
+    },
+    {
+      "front": "What does ⏾ not today do to a card?",
+      "back": "Puts it off until tomorrow, ungraded",
+      "note": "Between skip (back later this sitting) and park (gone until you say)."
+    },
+    {
+      "front": "How does the Ladder decide how to ask each card?",
+      "back": "By how well you know it — new among options, young with a blank, old from nothing",
+      "note": "A miss drops the card back to the first rung. Review due on the home screen is a Ladder."
+    },
+    {
+      "front": "What does a card need before Order it will deal it?",
+      "back": "An answer that is a sequence — steps joined by → or ;"
+    },
+    {
+      "front": "What do the small words under Again, Good and Easy tell you?",
+      "back": "When the card would come back if you pressed that one"
+    },
+    {
+      "front": "What does 'Wrong in a flash' on the results screen mean?",
+      "back": "You missed it too fast to have tried — a guess, not an attempt",
+      "note": "The attempt to retrieve is where the learning happens, even when it fails."
+    },
+    {
+      "front": "What changes in the last three days before a deadline?",
+      "back": "Every card you have seen is asked once more, soonest due first"
+    },
+    {
+      "front": "What does Say it do with a language module?",
+      "back": "Says the answer properly, listens to you say it, and shows which words came out"
+    },
+    {
+      "front": "A card has no hint. What does asking for one show?",
+      "back": "The shape of the answer — first letter, then blanks"
+    },
+    {
+      "front": "No picture for a card? What does Find one do?",
+      "back": "Searches Wikimedia Commons and keeps the picture's page as the source"
     }
   ]
 }

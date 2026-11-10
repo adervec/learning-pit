@@ -1,0 +1,117 @@
+{
+  "id": "in-order",
+  "title": "In Order",
+  "description": "Things that only make sense in sequence — planets, cycles, layers and steps. Made for Order it.",
+  "icon": "🧬",
+  "tags": [
+    "science",
+    "sequences"
+  ],
+  "cards": [
+    {
+      "front": "The planets, in order from the Sun",
+      "back": "Mercury → Venus → Earth → Mars → Jupiter → Saturn → Uranus → Neptune",
+      "hint": "My Very Easy Method Just Speeds Up Naming"
+    },
+    {
+      "front": "The colours of the rainbow, from the outside in",
+      "back": "Red → Orange → Yellow → Green → Blue → Indigo → Violet",
+      "hint": "Richard Of York Gave Battle In Vain"
+    },
+    {
+      "front": "The life of a butterfly",
+      "back": "Egg → Caterpillar → Chrysalis → Butterfly"
+    },
+    {
+      "front": "The life of a frog",
+      "back": "Frogspawn → Tadpole → Froglet → Frog"
+    },
+    {
+      "front": "The seasons, starting with spring",
+      "back": "Spring → Summer → Autumn → Winter"
+    },
+    {
+      "front": "Washing your hands properly",
+      "back": "Wet → Soap → Scrub → Rinse → Dry"
+    },
+    {
+      "front": "Making a loaf of bread",
+      "back": "Mix → Knead → Prove → Shape → Bake",
+      "note": "Proving is the wait while the yeast fills the dough with gas — skip it and the loaf is a brick."
+    },
+    {
+      "front": "A plant, from the beginning",
+      "back": "Seed → Shoot → Seedling → Flower → Fruit"
+    },
+    {
+      "front": "The water cycle, starting at the sea",
+      "back": "Evaporation → Condensation → Precipitation → Collection",
+      "note": "Water rises as vapour, gathers into clouds, falls as rain or snow, and runs back to the sea."
+    },
+    {
+      "front": "Units of time, shortest first",
+      "back": "Second → Minute → Hour → Day → Week → Month → Year"
+    },
+    {
+      "front": "Metric lengths, smallest first",
+      "back": "Millimetre → Centimetre → Metre → Kilometre"
+    },
+    {
+      "front": "The phases of the Moon, from new to full",
+      "back": "New moon → Waxing crescent → First quarter → Waxing gibbous → Full moon",
+      "note": "Waxing means growing. After full it wanes back the same way in reverse."
+    },
+    {
+      "front": "The layers of the Earth, from the outside in",
+      "back": "Crust → Mantle → Outer core → Inner core",
+      "note": "The outer core is liquid metal; the inner core is hotter still but squeezed solid."
+    },
+    {
+      "front": "The layers of the atmosphere, from the ground up",
+      "back": "Troposphere → Stratosphere → Mesosphere → Thermosphere → Exosphere",
+      "note": "Weather happens in the first, the ozone layer sits in the second, meteors burn up in the third."
+    },
+    {
+      "front": "The path food takes through the body",
+      "back": "Mouth → Oesophagus → Stomach → Small intestine → Large intestine"
+    },
+    {
+      "front": "The oceans, largest first",
+      "back": "Pacific → Atlantic → Indian → Southern → Arctic"
+    },
+    {
+      "front": "The continents, largest first",
+      "back": "Asia → Africa → North America → South America → Antarctica → Europe → Oceania"
+    },
+    {
+      "front": "The order of operations in arithmetic",
+      "back": "Brackets → Powers → Multiply and divide → Add and subtract",
+      "note": "Multiplying and dividing rank equally, as do adding and subtracting — within a rank, work left to right."
+    },
+    {
+      "front": "The scientific method",
+      "back": "Question → Hypothesis → Experiment → Analysis → Conclusion"
+    },
+    {
+      "front": "The three ages of prehistory",
+      "back": "Stone Age → Bronze Age → Iron Age",
+      "note": "Named for what the best tools were made of."
+    },
+    {
+      "front": "The ranks of living things, from kingdom down",
+      "back": "Kingdom → Phylum → Class → Order → Family → Genus → Species",
+      "hint": "King Philip Came Over For Good Soup"
+    },
+    {
+      "front": "The stages of mitosis",
+      "back": "Prophase → Metaphase → Anaphase → Telophase",
+      "hint": "PMAT",
+      "note": "Chromosomes condense, line up in the middle, are pulled apart, and two nuclei form."
+    },
+    {
+      "front": "The electromagnetic spectrum, longest wavelength first",
+      "back": "Radio → Microwave → Infrared → Visible → Ultraviolet → X-ray → Gamma ray",
+      "note": "Shorter wavelength means higher energy, which is why the far end is the dangerous one."
+    }
+  ]
+}
