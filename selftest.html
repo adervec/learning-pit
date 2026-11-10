@@ -2297,6 +2297,24 @@ try {
   $('[data-opt="kid"]').click();
   await wait(250);
 
+  // ---- 101d. what's new: listed for grown-ups, kept from kid profiles ----
+  {
+    const notes = await fetch('./whatsnew.json', { cache: 'no-cache' }).then(r => r.json());
+    check(Array.isArray(notes) && notes.length && notes.every(e => /^\d{4}-\d\d-\d\d$/.test(e.date) && e.items?.length),
+      "whatsnew.json is a dated list, newest first", notes[0]?.date);
+    check(notes.every((e, i) => !i || e.date <= notes[i - 1].date), 'in order');
+    await boot();
+    check(!!doc().querySelector('meta[name="app-whatsnew"]'), 'a grown-up profile points font.js at it');
+    const prof101d = state();
+    prof101d.profiles[prof101d.active].opts.kid = true;
+    localStorage.setItem('pit.v1', JSON.stringify(prof101d));
+    frame.src = './index.html?selftest';
+    await new Promise(r => frame.onload = r);
+    await wait(300);
+    check(!doc().querySelector('meta[name="app-whatsnew"]') && !doc().getElementById('app-whatsnew'),
+      'a kid profile gets no release notes');
+  }
+
   // ---- 102. Anki's cloze syntax pastes in as ordinary cards ----
   await boot();
   await click('[data-act="import"]', 250);

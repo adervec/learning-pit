@@ -4491,6 +4491,11 @@ addEventListener('beforeinstallprompt', e => {
   render();          // the offer only exists once the browser says it does
 });
 
+// font.js shows "what's new" once after an update, on DOMContentLoaded — after this module's
+// synchronous code. A child has no use for release notes, so a kid profile takes the pointer
+// away first; the grown-up sees the whole lot next time they open their own profile.
+if (opt().kid) document.querySelector('meta[name="app-whatsnew"]')?.remove();
+
 (async function boot() {
   // A brand-new device asks who it is for before it shows a library.
   if (!state.settings.setup && !(P().stats.reviews || 0) && !location.hash) view = { name: 'setup' };
