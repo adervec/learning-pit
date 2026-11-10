@@ -1750,6 +1750,9 @@ try {
   check(!!pushed.body, 'device one pushes its state to the (mock) app folder');
   check(JSON.parse(pushed.body).profiles?.Explorer?.stats?.reviews >= 1,
     'with the review it just did inside');
+  const gpic = await waitFor('.acct .gpic', 3000).catch(() => null);
+  check(gpic?.getAttribute('referrerpolicy') === 'no-referrer' && !!$('.acct')?.textContent.includes('Mock Learner'),
+    'the connected Google account shows its picture and name', $('.acct')?.textContent.trim());
   // device two: same account, empty device — pull
   localStorage.removeItem('pit.v1');
   localStorage.removeItem('pit.session');

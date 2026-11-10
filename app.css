@@ -59,6 +59,10 @@ h2 { font-size: .78rem; text-transform: uppercase; letter-spacing: .16em; color:
   font: inherit; font-size: .85rem; color: var(--dim); background: var(--raised);
   border: 1px solid var(--edge); border-radius: 999px; padding: 8px 12px; min-height: 40px; cursor: pointer;
 }
+.gpic { width: 24px; height: 24px; border-radius: 50%; vertical-align: middle; object-fit: cover; }
+.chip .gpic { width: 20px; height: 20px; margin-right: 2px; }
+.acct { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
+.acct em { color: var(--dim); font-style: normal; font-size: .85rem; }
 .chip b { color: var(--ink); font-weight: 600; letter-spacing: .04em; }
 .chip.big { min-height: var(--tap); font-size: 1rem; padding: 0 18px; }
 .chip.on { border-color: var(--cyan); color: var(--ink); box-shadow: 0 0 0 1px var(--cyan) inset; }

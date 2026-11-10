@@ -219,8 +219,12 @@ function addCustom(raw) {
 
 // ---------------- google drive sync (appdata folder, no backend) ----------------
 
-const SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
+// The profile scopes are only there to show whose Drive this is — a name and a face beside
+// "synced". Nothing from them is stored or synced.
+const SCOPE = 'openid profile email https://www.googleapis.com/auth/drive.appdata';
+const USERINFO = 'https://www.googleapis.com/oauth2/v3/userinfo';
 const FILE = 'learning-pit-state.json';
+let account = null;     // { name, email, picture } of the connected Google account, this page only
 let token = null, tokenExp = 0, tokenClient = null, syncTimer = null, syncing = false, syncError = '';
 
 // The OAuth client ID belongs to the deployment, not the person: if config.json carries
@@ -229,6 +233,21 @@ let token = null, tokenExp = 0, tokenClient = null, syncTimer = null, syncing = 
 let deployClientId = '';
 const clientId = () => (state.settings.clientId || deployClientId || '').trim();
 const signedIn = () => !!token;
+
+// Who is connected. Never through api(): a token granted before the profile scopes existed
+// gets a 401 here and must go on syncing — it just shows no face.
+async function loadAccount() {
+  try {
+    const me = token === 'mock' ? await api(USERINFO)
+      : await fetch(USERINFO, { headers: { Authorization: 'Bearer ' + token } }).then(r => r.ok ? r.json() : null);
+    account = me ? { name: me.name || '', email: me.email || '', picture: me.picture || '' } : null;
+  } catch { account = null; }
+  renderBar();
+  if (view.name === 'settings') render();
+}
+// The Google account's own picture — not the learner's emoji avatar, which is the app's.
+const accountPic = () => /^(https:\/\/|data:image\/)/.test(account?.picture || '')
+  ? `<img class="gpic" src="${esc(account.picture)}" alt="" referrerpolicy="no-referrer" width="24" height="24">` : '';
 
 function auth(interactive) {
   if (token && Date.now() < tokenExp - 60000) return Promise.resolve(token);
@@ -241,6 +260,7 @@ function auth(interactive) {
       token = r.access_token;
       tokenExp = Date.now() + (r.expires_in || 3600) * 1000;
       localStorage.setItem('pit.wasSignedIn', '1');
+      loadAccount();
       res(token);
     };
     tokenClient.error_callback = e => rej(new Error(e.type || 'sign-in cancelled'));
@@ -263,7 +283,7 @@ if (new URLSearchParams(location.search).has('mock-drive')) {
     api = m.mockApi;
     token = 'mock';
     tokenExp = Date.now() + 3600e3;
-    renderBar();
+    loadAccount();
     toast('Drive mock active — nothing leaves this device.');
   }).catch(e => console.warn('mock-drive:', e.message));
 }
@@ -494,7 +514,7 @@ function renderBar() {
   applyAccent();
   const sync = !clientId() ? ''
     : syncError ? `<button class="chip warnchip" data-act="sync" title="${esc(syncError)} — tap to retry">⚠ sync</button>`
-    : signedIn() ? `<button class="chip" data-act="sync" title="Sync now">☁ synced</button>`
+    : signedIn() ? `<button class="chip" data-act="sync" title="Sync now${account ? ' — ' + esc(account.name || account.email) : ''}">${accountPic() || '☁'} synced</button>`
     : `<button class="chip" data-act="signin">☁ sign in</button>`;
   bar.innerHTML = `
     <button class="chip" data-act="home" aria-label="Home">◎ <b>Learning Pit</b></button>
@@ -1941,6 +1961,8 @@ function settings() {
         : 'Paste an OAuth client ID — see README.md.'}</p>
     <input id="cid" aria-label="Google OAuth client ID" placeholder="xxxxx.apps.googleusercontent.com"
       value="${esc(state.settings.clientId || '')}" spellcheck="false">
+    ${signedIn() && account ? `<p class="acct">${accountPic()}<span>${esc(account.name || account.email)}</span>
+      ${account.name && account.email ? `<em>${esc(account.email)}</em>` : ''}</p>` : ''}
     <div class="row wrap">
       <button class="btn" data-act="signin">${signedIn() ? 'Sync now' : 'Connect Google'}</button>
       ${signedIn() ? '<button class="btn ghost" data-act="signout">Sign out</button>' : ''}
@@ -3593,6 +3615,7 @@ ${toMarkdown(visible())}`;
     if (!await askYes('Stop syncing on this device? Progress stays here and in Drive.', 'Sign out')) return;
     try { if (token) google.accounts.oauth2.revoke(token, () => {}); } catch { /* offline */ }
     token = null;
+    account = null;
     tokenExp = 0;
     tokenClient = null;
     syncError = '';

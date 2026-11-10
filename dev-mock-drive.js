@@ -17,6 +17,10 @@ export async function mockApi(url, opts = {}) {
   const file = read();
   await new Promise(r => setTimeout(r, 60));   // a little latency, like the real thing
 
+  if (url.includes('/oauth2/v3/userinfo')) {                     // who is signed in
+    return { name: 'Mock Learner', email: 'mock@example.test',
+      picture: 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#888"/></svg>') };
+  }
   // Order matters: the upload endpoint is /upload/drive/v3/files?… and would otherwise
   // match the lookup branch.
   if (url.includes('uploadType=media')) {                        // update in place

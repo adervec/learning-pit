@@ -489,8 +489,11 @@ No client ID → the app runs fine, progress just stays on the device.
 To try the sync flow without any of this, open `?mock-drive`: the real sync code runs against
 a local stand-in (see `dev-mock-drive.js`), so nothing leaves the device.
 
-Scope is `drive.appdata` only: the app can read and write its own hidden file and nothing
-else in your Drive. Progress, profiles and imported modules live in
+Drive scope is `drive.appdata` only: the app can read and write its own hidden file and nothing
+else in your Drive. It also asks for your basic profile (`openid profile email`) for one
+purpose — to show the account's name and picture beside "synced", so you can see whose Drive a
+shared tablet is writing to. That is fetched at sign-in, kept for the page's lifetime, and never
+stored or synced. A device connected before this was added is asked to consent once more. Progress, profiles and imported modules live in
 `learning-pit-state.json` there, merged per card (newest review wins) on every sync.
 
 ## Adding a game
