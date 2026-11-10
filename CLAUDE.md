@@ -113,3 +113,13 @@ state  = { active, settings: {clientId, lastSync, lastBackup, nudged}, custom: [
 - **A keyboard shortcut**: the `keydown` handler at the bottom of `app.js` branches on
   `session.key`; add a branch there and a phrase to `ACT.shortcuts`. Everything reachable by
   key must also be reachable by tapping something.
+
+## House standards (shared across every app by this maker)
+
+@../CoworkSyncHub/HOUSE-STANDARDS.md
+
+For this app:
+- Check the standards: `node ../CoworkSyncHub/standards.mjs learning -v`. Keep it all `ok` before pushing.
+- Test: `node core.test.js` and the in-page selftest.html
+- Deploy: push to main: ci.yml tests, publishes, live-checks and tags
+- Work on `main`, push your own work when it passes, and add user-visible changes to `whatsnew.json`.
