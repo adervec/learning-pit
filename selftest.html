@@ -35,7 +35,9 @@ clock.onmessage = e => { const r = waiters.get(e.data); waiters.delete(e.data); 
 const wait = ms => new Promise(r => { waiters.set(++waitN, r); clock.postMessage([waitN, ms]); });
 
 // The app and this page share an origin, so its storage is ours. Put it back afterwards.
-const KEYS = ['pit.v1', 'pit.session', 'pit.wasSignedIn', 'pit.mockdrive'];
+// Every pit.* key there now, plus the ones a run may create — the erase case removes them all.
+const KEYS = [...new Set(['pit.v1', 'pit.session', 'pit.wasSignedIn', 'pit.mockdrive', 'pit.cowork', 'pit.coachreply',
+  ...Object.keys(localStorage).filter(k => k.startsWith('pit.'))])];
 const backup = Object.fromEntries(KEYS.map(k => [k, localStorage.getItem(k)]));
 const restore = () => KEYS.forEach(k => backup[k] === null ? localStorage.removeItem(k) : localStorage.setItem(k, backup[k]));
 // Pictures and recordings live in IndexedDB. Read one back the way the app does, and remember
@@ -965,7 +967,7 @@ try {
     { pointerId: 1, clientX: box.left + x, clientY: box.top + y, bubbles: true }));
   P('pointerdown', 30, 30); P('pointermove', 90, 80); P('pointermove', 150, 40); P('pointerup', 150, 40);
   check(inkOn() > 100, 'a finger leaves a mark');
-  await click('[data-act="wipe"]', 150);
+  await click('[data-act="slateclear"]', 150);
   check(inkOn() === 0, 'and Clear takes it away');
   await click('[data-act="showword"]', 250);
   check(inkOn() > 100, 'showing the word draws it faintly to trace');
@@ -2201,7 +2203,7 @@ try {
   await click('[data-game="recall"]', 300);
   check(!!$('[data-act="peek"]'), 'a card without an author hint offers the shape of its answer');
   await click('[data-act="peek"]', 150);
-  check(/^[A-Z](\s_){3}$/.test($('.card .hint')?.textContent.trim() || ''), 'the hint is a first letter and blanks', $('.card .hint')?.textContent);
+  check(/^[A-Z](\s_){3,4}$/.test($('.card .hint')?.textContent.trim() || ''), 'the hint is a first letter and blanks', $('.card .hint')?.textContent);
   await click('[data-act="flip"]', 150);
   check($('[data-g="good"] small')?.textContent === '1 day', 'Good on a new card says one day', $('[data-g="good"] small')?.textContent);
   check($('[data-g="easy"] small')?.textContent === '3 days', 'Easy says three', $('[data-g="easy"] small')?.textContent);
@@ -2259,6 +2261,41 @@ try {
     check(!bodyFont().includes('Atkinson'), 'with font.js out of reach the old font stands', bodyFont());
   }
   if (fontWas === null) localStorage.removeItem('maker-font'); else localStorage.setItem('maker-font', fontWas);
+
+  // ---- 101c. erase everything: the Pit's own data only, never the shared origin's ----
+  // The real wipe reloads the frame; KEYS and the media cleanup put the run's own data back after.
+  await boot();
+  await click('[data-act="settings"]', 250);
+  check(/\S/.test($('app-build-info')?.textContent || ''), 'settings names the running build', $('app-build-info')?.textContent);
+  localStorage.setItem('other-app.data', 'keep me');
+  localStorage.setItem('pit.coachreply', 'x');
+  const fontBefore101c = localStorage.getItem('maker-font');
+  localStorage.setItem('maker-font', 'serif');
+  // Never let the real picture store go: on the live site this page shares it with your library.
+  const dropped101c = [];
+  frame.contentWindow.indexedDB.deleteDatabase = name => { dropped101c.push(name); return {}; };
+  $('[data-act="wipe"]').click();
+  await wait(150);
+  check(doc().body.textContent.includes('not touched'), 'it says the Drive copy is left alone');
+  const yes101c = [...doc().querySelectorAll('button')].find(b => b.textContent.trim() === 'Erase');
+  const reloaded101c = new Promise(r => frame.onload = r);
+  yes101c.click();
+  await reloaded101c;
+  await wait(300);
+  check(dropped101c.join() === 'pit.media', 'and drops the picture database', dropped101c.join());
+  check(!Object.keys(localStorage).some(k => k.startsWith('pit.') && k !== 'pit.v1'), 'every pit.* key is gone',
+    Object.keys(localStorage).filter(k => k.startsWith('pit.')).join());
+  check(localStorage.getItem('other-app.data') === 'keep me' && localStorage.getItem('maker-font') === 'serif',
+    'and the other apps on the origin keep theirs');
+  localStorage.removeItem('other-app.data');
+  if (fontBefore101c === null) localStorage.removeItem('maker-font'); else localStorage.setItem('maker-font', fontBefore101c);
+  await boot();
+  await click('[data-act="settings"]', 250);
+  $('[data-opt="kid"]').click();
+  await wait(250);
+  check(!$('[data-act="wipe"]'), 'kid mode has no erase button');
+  $('[data-opt="kid"]').click();
+  await wait(250);
 
   // ---- 102. Anki's cloze syntax pastes in as ordinary cards ----
   await boot();

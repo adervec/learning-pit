@@ -1936,7 +1936,8 @@ function settings() {
     ${window.appFont ? `<label class="row">Font
       <select id="fontpick">${window.appFont.options
         .map(o => `<option value="${esc(o.id)}" ${window.appFont.get() === o.id ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select>
-    </label>` : ''}
+    </label>
+    <p class="lede"><app-build-info></app-build-info></p>` : ''}
     <label class="row">Text size
       <select data-opt="text">${[[90, 'Small'], [100, 'Normal'], [115, 'Large'], [135, 'Very large']]
         .map(([v, l]) => `<option value="${v}" ${opt().text === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
@@ -1977,7 +1978,7 @@ function settings() {
     <h2>This device</h2>
     <p class="lede" id="usage">…</p>
     <div id="heavy"></div>
-    <button class="ghost sm" data-act="wipe">Erase everything on this device</button>
+    ${opt().kid ? '' : '<button class="ghost sm" data-act="wipe">Erase everything on this device</button>'}
     <p id="err" class="err"></p>
     <h2>Elsewhere</h2>
     <p class="lede">More apps by the same maker, all free and local-first —
@@ -2857,7 +2858,7 @@ const GAMES = {
         </div>
         <div class="slate">
           <canvas id="slate"></canvas>
-          <button class="ghost sm wipe" data-act="wipe">Clear</button>
+          <button class="ghost sm wipe" data-act="slateclear">Clear</button>
         </div>
         ${s.shown ? `<div class="row grades kid">
             <button class="btn again" data-act="grade" data-g="again">👎 Not yet</button>
@@ -3605,8 +3606,13 @@ ${toMarkdown(visible())}`;
     catch (e) { showErr(e); }
   },
   wipe: async () => {
-    if (!await askYes('Erase every profile, module and setting on this device? Export a backup first if you want one.', 'Erase')) return;
-    for (const k of ['pit.v1', 'pit.session', 'pit.wasSignedIn', 'pit.mockdrive']) localStorage.removeItem(k);
+    if (!await askYes('Erase every profile, module and setting on this device? This also disconnects Google Drive here; '
+      + 'the copy in Drive is not touched. Export a backup first if you want one.', 'Erase')) return;
+    try { if (token && token !== 'mock') google.accounts.oauth2.revoke(token, () => {}); } catch { /* offline */ }
+    token = null; account = null; tokenExp = 0; tokenClient = null;
+    // Only the Pit's own keys: every app by this maker shares the origin, so never clear().
+    // maker-font is the shared font choice and belongs to all of them.
+    for (const k of Object.keys(localStorage)) if (k.startsWith('pit.')) localStorage.removeItem(k);
     try { indexedDB.deleteDatabase(MEDIA); } catch { /* nothing to delete */ }
     setTimeout(() => location.reload(), 300);
   },
@@ -4248,7 +4254,8 @@ ${toMarkdown(visible())}`;
     render();
   },
   showword: () => { session.shown = true; render(); },
-  wipe: () => drawSlate(session.shown ? session.queue[0].back.toUpperCase() : '', session.shown),
+  // not "wipe": that name is Erase everything, and a second key in ACT silently replaces the first
+  slateclear: () => drawSlate(session.shown ? session.queue[0].back.toUpperCase() : '', session.shown),
   padtap: el => {
     const s = session;
     if (s.entry.length < 6) s.entry += el.dataset.n;

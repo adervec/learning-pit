@@ -345,7 +345,12 @@ score whether you build it or not.
 Every one of these is per learner, so one tablet can suit a four-year-old and an adult.
 
 - **Font** — Atkinson Hyperlegible by default, or system, serif or monospace. The choice is the
-  device's and is shared with the maker's other apps on the same site.
+  device's and is shared with the maker's other apps on the same site. The running build is
+  named under it.
+- **Erase everything on this device** removes every profile, module, picture and setting the
+  Pit keeps here, and disconnects Drive — the copy in Drive is not touched. It removes only the
+  Pit's own `pit.*` keys and its picture database, never the other apps' on the same site, and
+  is not offered in kid mode.
 - **Look** — follow the device, always dark, always light, or high contrast (black, white, hard
   edges). The whole interface is built from
   a handful of colour tokens, so each is a palette swap rather than a second stylesheet, and
