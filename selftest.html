@@ -2315,6 +2315,25 @@ try {
       'a kid profile gets no release notes');
   }
 
+  // ---- 101e. cowork v2: the coach's advice is reviewed, applied, and undone ----
+  {
+    await boot();
+    const shown = [];
+    const cfg = frame.contentWindow.__pitCoach(t => shown.push(t));
+    const ch = cfg.channels.coach;
+    localStorage.setItem('pit.coachreply', 'old advice');
+    const rows = ch.preview({ reply: 'Give **Flags** ten minutes.' });
+    check(rows.length === 1 && rows[0].detail.includes('Flags'), 'the reply is previewed as one change before it applies');
+    const done = ch.apply({ reply: 'Give **Flags** ten minutes.' }, ['reply']);
+    check(localStorage.getItem('pit.coachreply').includes('Flags') && shown.at(-1).includes('Flags'), 'applying it shows the advice');
+    check(JSON.parse(JSON.stringify(done.undo)).prev === 'old advice', 'with an undo that survives JSON');
+    ch.undo(JSON.parse(JSON.stringify(done.undo)));
+    check(localStorage.getItem('pit.coachreply') === 'old advice', 'and undo puts the old advice back');
+    const brief = cfg.brief();
+    check(brief.markdown.startsWith('# Learning Pit brief') && brief.data.app === 'learning-pit', 'the brief reads as a page and as data');
+    localStorage.removeItem('pit.coachreply');
+  }
+
   // ---- 102. Anki's cloze syntax pastes in as ordinary cards ----
   await boot();
   await click('[data-act="import"]', 250);

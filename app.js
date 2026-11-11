@@ -1842,15 +1842,45 @@ function coachConfig(show) {
         'coach/INSTRUCTIONS.md': COACH_INSTRUCTIONS,
       };
     },
-    apply: (ch, reply) => {
-      const t = typeof reply === 'string' ? reply
-        : (reply && (reply.reply || (reply.payload && reply.payload.reply)))
-          || JSON.stringify(reply, null, 2);
-      try { localStorage.setItem('pit.coachreply', t); } catch { /* quota */ }
-      show(t);
+    // cowork.js before v2 calls this directly; v2 goes through channels.coach, reviewed first.
+    apply: (ch, reply) => coachChannel(show).apply(reply),
+    channels: { coach: coachChannel(show) },
+    // What an agent can read without being asked: the same numbers, as a page and as data.
+    brief: () => {
+      const b = briefPayload({ profiles: state.profiles, active: state.active, modules: visible() });
+      const mods = (b.modules || []).map(m => `- ${m.title}: ${m.due ?? 0} due, ${m.accuracy == null ? 'no' : m.accuracy + '%'} accuracy`);
+      return {
+        markdown: `# Learning Pit brief\n\n${b.learner?.name || state.active}: ${b.due?.now ?? 0} cards due now, `
+          + `about ${b.due?.minutes ?? 0} minutes. Streak ${b.stats?.streak ?? 0} days.\n\n## Modules\n\n${mods.join('\n') || '- (none)'}\n`,
+        data: { app: 'learning-pit', generatedAt: new Date().toISOString(), ...b },
+      };
     },
   };
 }
+// The coach replies with advice and nothing else: it never adds cards or moves a schedule,
+// so there is one thing to review — the advice that would replace the current one.
+const coachText = reply => typeof reply === 'string' ? reply
+  : (reply && (reply.reply || (reply.payload && reply.payload.reply))) || JSON.stringify(reply, null, 2);
+function coachChannel(show) {
+  return {
+    label: 'Study coach',
+    preview: reply => [{ id: 'reply', label: 'Show this advice (replaces the current one)', detail: coachText(reply).slice(0, 400) }],
+    apply: reply => {
+      let prev = '';
+      try { prev = localStorage.getItem('pit.coachreply') || ''; } catch { /* private mode */ }
+      const t = coachText(reply);
+      try { localStorage.setItem('pit.coachreply', t); } catch { /* quota */ }
+      show(t);
+      return { summary: 'new study advice shown', undo: { prev } };
+    },
+    undo: data => {
+      try { localStorage.setItem('pit.coachreply', data?.prev || ''); } catch { /* quota */ }
+      show(data?.prev || '');
+    },
+  };
+}
+// The self-test cannot pick a folder, so it drives the channel directly.
+if (location.search.includes('selftest')) window.__pitCoach = coachConfig;
 // The panel restores its folder on its own, asynchronously. Once a channel shows a request on
 // disk the folder is live: remember that for the next boot, and write fresh numbers now.
 function watchCoach(panel) {
