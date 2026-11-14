@@ -2329,6 +2329,25 @@ try {
     check(JSON.parse(JSON.stringify(done.undo)).prev === 'old advice', 'with an undo that survives JSON');
     ch.undo(JSON.parse(JSON.stringify(done.undo)));
     check(localStorage.getItem('pit.coachreply') === 'old advice', 'and undo puts the old advice back');
+    // the AI review of sittings: one row per sitting, kept beside the score, undoable
+    await click('[data-act="open"][data-id="colours"]');
+    await click('[data-game="recall"]', 300);
+    await click('[data-act="flip"]', 60);
+    await click('[data-g="again"]', 200);
+    await click('[data-act="endsitting"]', 400);
+    const sat = profile().stats.sessions[0];
+    check(Array.isArray(sat.miss) && sat.miss.length === 1, 'a sitting remembers what was missed', JSON.stringify(sat.miss));
+    const rv = cfg.channels['study-review'];
+    const req = cfg.files('study-review')['study-review/request.json'];
+    check(req.requestHash && req.payload.sessions.some(x => x.sessionId === String(sat.t)), 'the review request carries the new sitting');
+    const reply = { requestHash: req.requestHash, reviews: [{ sessionId: String(sat.t), grade: 'C', summary: 'One slip.', next: 'Recall it again.' }] };
+    check(rv.preview(reply).length === 1, 'review shows one row per sitting');
+    const undo = rv.apply(reply, [String(sat.t)]).undo;
+    check(profile().stats.sessions[0].ai?.grade === 'C' && profile().stats.sessions[0].w === 1, 'the grade lands beside the score');
+    await click('[data-act="progress"]', 400);
+    check(!!$('.aireview') && $('.aireview').textContent.includes('One slip'), 'and shows on that sitting', $('.aireview')?.textContent);
+    rv.undo(JSON.parse(JSON.stringify(undo)));
+    check(!profile().stats.sessions[0].ai, 'undo takes it off again');
     const brief = cfg.brief();
     check(brief.markdown.startsWith('# Learning Pit brief') && brief.data.app === 'learning-pit', 'the brief reads as a page and as data');
     localStorage.removeItem('pit.coachreply');

@@ -1,6 +1,6 @@
 // node core.test.js  — fails loudly if the scheduling / merge / validation logic breaks.
 import assert from 'node:assert/strict';
-import { DAY, LEECH_AT, STICKERS, stickersFor, stickerEarned, auditModule, bestTime, bumpStreak, cardKey, cloze, counts, dayStr, deadlinePlan, decoys, distractors, dueAcross, duplicatesAcross, weeklyTotals, esc, examScore, examSet, fmt, forecast, growPrompt, hash, ident, judgeTyped, newCards, keyPoints, coverage, letterTiles, levenshtein, mergeConfusions, mergeState, minutesFor, pace, parseImport, pickSession, rankFor, schedule, reminderIcs, sharpenPrompt, slowAfter, spreadDue, tagTotals, spellable, starred, toMarkdown, troubleSpots, validateModule, weekSummary, maskHint, diffChars, quickBefore, yearSummary, listItems, ladderRung, briefPayload } from './core.js';
+import { DAY, LEECH_AT, STICKERS, stickersFor, stickerEarned, auditModule, bestTime, bumpStreak, cardKey, cloze, counts, dayStr, deadlinePlan, decoys, distractors, dueAcross, duplicatesAcross, weeklyTotals, esc, examScore, examSet, fmt, forecast, growPrompt, hash, ident, judgeTyped, newCards, keyPoints, coverage, letterTiles, levenshtein, mergeConfusions, mergeState, minutesFor, pace, parseImport, pickSession, rankFor, schedule, reminderIcs, sharpenPrompt, slowAfter, spreadDue, tagTotals, spellable, starred, toMarkdown, troubleSpots, validateModule, weekSummary, maskHint, diffChars, quickBefore, yearSummary, listItems, ladderRung, briefPayload, reviewRequest, reviewRows, attachReviews, detachReviews } from './core.js';
 
 const T = 1_700_000_000_000;
 const cards = Array.from({ length: 10 }, (_, i) => ({ front: `q${i}`, back: `a${i}` }));
@@ -1037,6 +1037,31 @@ assert.equal(listItems({ front: 'Repeat', back: 'a; b; a' }), null, 'repeated it
   assert.equal(b.stats.rank, 'Cadet');
   assert.ok(JSON.stringify(b).length < 20000, 'and the whole thing stays small');
   assert.equal(briefPayload().modules.length, 0, 'an empty pit makes an empty brief, not an error');
+}
+
+// --- AI review of sittings: ask about the unreviewed, keep reviews beside the score, undo cleanly ---
+{
+  const log = [{ t: 3000, m: 'Flags', g: 'recall', r: 8, w: 2, secs: 60, miss: ['France', 'Peru'] },
+    { t: 2000, m: 'Flags', g: 'choice', r: 5, w: 0, secs: 20, ai: { grade: 'A' } }];
+  const req = reviewRequest(log);
+  assert.equal(req.sessions.length, 1, 'only the sitting with no review is asked about');
+  assert.deepEqual(req.sessions[0].score, { right: 8, wrong: 2, accuracy: 80, seconds: 60, secondsPerCard: 6 });
+  assert.deepEqual(req.sessions[0].missed, ['France', 'Peru'], 'with what was missed');
+  assert.equal(req.history.length, 2, 'and the history for the trend');
+  const rows = reviewRows(log, { reviews: [{ sessionId: '3000', grade: 'B', summary: 'Solid.', fixes: ['Peru vs Bolivia'], next: 'Redo Flags' },
+    { sessionId: '999', grade: 'F' }, { sessionId: 3000, grade: 7, strengths: 'not a list' }] });
+  assert.equal(rows.length, 2, 'a review for a sitting we never had is dropped');
+  assert.equal(rows[1].ai.grade, '', 'and a malformed field comes through empty, not as junk');
+  const prev = attachReviews(log, rows.slice(0, 1), ['3000']);
+  assert.equal(log[0].ai.grade, 'B', 'the review sits on the sitting');
+  assert.equal(log[0].r, 8, "beside the app's own score, which is untouched");
+  assert.deepEqual(JSON.parse(JSON.stringify(prev)), { 3000: null }, 'undo data is plain JSON');
+  detachReviews(log, prev);
+  assert.ok(!('ai' in log[0]), 'undo takes the review away again');
+  assert.equal(log[1].ai.grade, 'A', 'and leaves the others alone');
+  const merged = mergeState({ profiles: { k: { srs: {}, stats: { sessions: [{ t: 1, r: 1, w: 0, ai: { grade: 'A' } }] } } } },
+    { profiles: { k: { srs: {}, stats: { sessions: [{ t: 1, r: 1, w: 0 }] } } } });
+  assert.equal(merged.profiles.k.stats.sessions[0].ai?.grade, 'A', 'a review survives a sync with a device that lacks it');
 }
 
 // --- what ships: every bundled module is valid, and Order it and Say it each have something to deal ---

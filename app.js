@@ -1,6 +1,6 @@
 import { STICKERS, auditModule, bestTime, bumpStreak, cardKey, cloze, counts, coverage, dayStr, deadlinePlan, decoys, distractors, dueAcross, duplicatesAcross, esc, examScore, examSet, fmt, forecast, growPrompt, hash, ident, judgeTyped,
   letterTiles, mergeConfusions, mergeState, minutesFor, newCards, parseImport, pickSession, rankFor, reminderIcs, schedule, sharpenPrompt, shuffle, slowAfter, spellable, spreadDue, tagTotals, starred, toMarkdown, stickerEarned, troubleSpots,
-  stickersFor, validateModule, weekSummary, weeklyTotals, maskHint, diffChars, quickBefore, yearSummary, listItems, ladderRung, briefPayload } from './core.js';
+  stickersFor, validateModule, weekSummary, weeklyTotals, maskHint, diffChars, quickBefore, yearSummary, listItems, ladderRung, briefPayload, reviewRequest, reviewRows, attachReviews, detachReviews } from './core.js';
 
 const KEY = 'pit.v1';
 const app = document.getElementById('app');
@@ -1003,8 +1003,9 @@ function results() {
       p.stats.confusions = mergeConfusions(p.stats.confusions,
         session.mixups.map(x => ({ a: x.asked, b: x.took })));
     }
+    const miss = [...new Set((session.missed || []).map(c => c.front))].slice(0, 10).map(f => f.slice(0, 120));
     p.stats.sessions = [{ t: Date.now(), m: m.title, g: session.key, r: right, w: wrong,
-      secs: Math.round((Date.now() - (session.startedAt || Date.now())) / 1000) },
+      secs: Math.round((Date.now() - (session.startedAt || Date.now())) / 1000), ...(miss.length ? { miss } : {}) },
       ...(p.stats.sessions || [])].slice(0, 50);
     // A promotion is announced once: the rank held is remembered, not recomputed for show.
     const now = rankFor(learnedCount()).rank.name;
@@ -1602,8 +1603,10 @@ function sittings() {
     return days === 0 ? 'today' : days === 1 ? 'yesterday' : `${days} days ago`;
   };
   return `<h2>Recent sittings</h2>
-    <div class="list">${log.map(s => `<div class="li">
-      <span>${esc(s.m)} <small>${esc(GAMES[s.g]?.label || s.g)} · ${when(s.t)}</small></span>
+    <div class="list">${log.map(s => `<div class="li${s.ai ? ' reviewed' : ''}">
+      <span>${esc(s.m)} <small>${esc(GAMES[s.g]?.label || s.g)} · ${when(s.t)}</small>
+        ${s.ai ? `<small class="aireview" title="${esc([s.ai.summary, ...(s.ai.fixes || []), s.ai.next].filter(Boolean).join('\n'))}">
+          Tutor: <b>${esc(s.ai.grade)}</b> — ${esc(s.ai.summary)}${s.ai.next ? ` <em>Next: ${esc(s.ai.next)}</em>` : ''}</small>` : ''}</span>
       <b class="${s.w === 0 ? 'clean' : ''}">${s.r}/${s.r + s.w}</b>
     </div>`).join('')}</div>`;
 }
@@ -1832,7 +1835,9 @@ function coachConfig(show) {
     app: 'learning-pit',
     manifest: { protocol: 'cowork-manifest', protocolVersion: 1, app: 'learning-pit',
       channels: [{ name: 'coach', request: ['coach/request.json'],
-        instructions: 'coach/INSTRUCTIONS.md', replyPath: 'coach/reply.json' }] },
+        instructions: 'coach/INSTRUCTIONS.md', replyPath: 'coach/reply.json' },
+      { name: 'study-review', request: ['study-review/request.json'],
+        instructions: 'study-review/INSTRUCTIONS.md', replyPath: 'study-review/reply.json' }] },
     files: () => {
       const payload = briefPayload({ profiles: state.profiles, active: state.active, modules: visible() });
       return {
@@ -1840,11 +1845,13 @@ function coachConfig(show) {
           kind: 'coach-request', generatedAt: new Date().toISOString(),
           requestHash: coachHash(JSON.stringify(payload)), payload },
         'coach/INSTRUCTIONS.md': COACH_INSTRUCTIONS,
+        'study-review/request.json': reviewFile(),
+        'study-review/INSTRUCTIONS.md': REVIEW_INSTRUCTIONS,
       };
     },
     // cowork.js before v2 calls this directly; v2 goes through channels.coach, reviewed first.
     apply: (ch, reply) => coachChannel(show).apply(reply),
-    channels: { coach: coachChannel(show) },
+    channels: { coach: coachChannel(show), 'study-review': reviewChannel() },
     // What an agent can read without being asked: the same numbers, as a page and as data.
     brief: () => {
       const b = briefPayload({ profiles: state.profiles, active: state.active, modules: visible() });
@@ -1879,6 +1886,60 @@ function coachChannel(show) {
     },
   };
 }
+// The app grades every sitting by arithmetic — right over asked. The study-review channel asks an
+// agent for the human version of that grade, kept BESIDE the score on the sitting, never over it.
+const REVIEW_INSTRUCTIONS = [
+  '# Learning Pit — study-review channel',
+  '',
+  'Read `study-review/request.json`. `payload.sessions` are the sittings nobody has reviewed yet;',
+  'each has the app\'s own `score` (right, wrong, accuracy %, seconds, seconds per card) and the',
+  'questions the learner `missed`. `payload.history` is the last fifty sittings, for the trend, with',
+  'any grade you gave before. `payload.learner.kid` says whether this is a child.',
+  '',
+  '## Rubric',
+  '- Grade A to F. A: accurate (90%+) AND fluent (no slower than their usual pace). C: about',
+  '  70%, or accurate but laboured. F: under 40%, or a sitting abandoned after a few cards.',
+  '- Weigh the exercise: recognising among options (choice, true/false, match) is easier than',
+  '  producing the answer (write it, recall, spell, number pad). An 80% recall beats a 95% choice.',
+  '- Compare with `history` for the same module: improving, flat or slipping says more than one score.',
+  '- Look for a pattern in `missed` (the same confusion, a whole topic, long answers) and name it.',
+  '- For a child, be warm and concrete. Never scold a short or missed day.',
+  '',
+  '## Reply',
+  'Write `study-review/reply.json`:',
+  '```json',
+  '{ "protocol": "learning-pit-study-review", "kind": "study-review-output", "requestHash": "<echo request.requestHash>",',
+  '  "reviews": [ { "sessionId": "<from the request>", "grade": "B", "summary": "one or two sentences",',
+  '    "strengths": ["…"], "fixes": ["…"], "next": "the one thing to do next sitting" } ] }',
+  '```',
+  'One review per sitting in the request, matched by `sessionId`. Unknown ids are ignored.',
+  'If you cannot do the job, say why in `study-review/error.json` instead of guessing.',
+].join('\n');
+function reviewFile() {
+  const p = P();
+  const payload = { learner: { name: state.active, kid: !!p.opts?.kid }, ...reviewRequest(p.stats.sessions || []) };
+  return { protocol: 'learning-pit-study-review', protocolVersion: 1, kind: 'study-review-request',
+    generatedAt: new Date().toISOString(), requestHash: coachHash(JSON.stringify(payload)), payload };
+}
+function reviewChannel() {
+  const log = () => P().stats.sessions || [];
+  const name = id => { const s = log().find(x => String(x.t) === id); return s ? `${s.m}, ${new Date(s.t).toLocaleString()}` : id; };
+  return {
+    label: 'Sitting reviews',
+    schedule: 'daily',
+    preview: reply => reviewRows(log(), reply).map(r => ({ id: r.sessionId,
+      label: `${name(r.sessionId)}: ${r.ai.grade || '—'}`, detail: r.ai.summary })),
+    apply: (reply, accepted) => {
+      const rows = reviewRows(log(), reply);
+      const prev = attachReviews(log(), rows, accepted || null);
+      save();
+      if (view.name === 'progress') render();
+      const n = Object.keys(prev).length;
+      return { summary: `${n} sitting${n === 1 ? '' : 's'} reviewed`, undo: { prev } };
+    },
+    undo: data => { detachReviews(log(), data?.prev || {}); save(); if (view.name === 'progress') render(); },
+  };
+}
 // The self-test cannot pick a folder, so it drives the channel directly.
 if (location.search.includes('selftest')) window.__pitCoach = coachConfig;
 // The panel restores its folder on its own, asynchronously. Once a channel shows a request on
@@ -1895,7 +1956,7 @@ function watchCoach(panel) {
   }, 250);
 }
 // After a sitting: fresh numbers for whoever reads the folder. A no-op with no folder.
-function pushCoach() { coachPanel?.push?.('coach'); }
+function pushCoach() { coachPanel?.push?.('coach'); coachPanel?.push?.('study-review'); }
 function mountCoach(host = document.getElementById('coachhost'), out = document.getElementById('coachreply')) {
   if (!host || host.childElementCount) return;
   const show = t => { if (!out) return; out.textContent = t || ''; out.style.display = t ? 'block' : 'none'; };

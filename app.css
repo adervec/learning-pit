@@ -314,6 +314,8 @@ label.row small { margin-left: -6px; }
 .bar.weak i { background: var(--bad); }
 
 .li b.clean { color: var(--good); }
+.li .aireview { display: block; color: var(--dim); margin-top: 2px; }
+.li .aireview b, .li .aireview em { color: var(--ink); font-style: normal; }
 
 /* The certificate — worth a spot on the fridge */
 .cert {

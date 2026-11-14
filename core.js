@@ -1055,7 +1055,12 @@ function mergeStats(a = {}, b = {}) {
   // Sittings are appended on whichever device did them, so a merge is a union: same stamp
   // means the same sitting, and only the most recent fifty are worth keeping.
   const seen = new Map();
-  for (const x of [...(a.sessions || []), ...(b.sessions || [])]) seen.set(x.t, x);
+  // A sitting is the same sitting on both devices; an AI review written on either survives the merge.
+  // ponytail: an undone review can come back from a device that still has it; add a tombstone if it bites.
+  for (const x of [...(a.sessions || []), ...(b.sessions || [])]) {
+    const had = seen.get(x.t);
+    seen.set(x.t, had?.ai && !x.ai ? { ...x, ai: had.ai } : x);
+  }
   const sessions = [...seen.values()].sort((x, y) => y.t - x.t).slice(0, 50);
   return {
     // Anything either side carries survives the merge — a field added later must not be
@@ -1278,4 +1283,60 @@ export function briefPayload({ profiles = {}, active = '', modules = [], now = D
     family: Object.keys(profiles).length > 1
       ? weeklyTotals(profiles, now).map(f => ({ name: f.name, reviews7d: f.total })) : [],
   };
+}
+
+
+// ---------------- AI review of sittings (cowork "study-review") ----------------
+
+/**
+ * What an agent needs to grade the sittings it has not reviewed yet: each with the app's own
+ * score and its parts, the questions missed, and the recent history for the trend. A sitting is
+ * named by its start time, which is how the reply finds it again.
+ */
+export function reviewRequest(sessions = [], { limit = 20 } = {}) {
+  const row = s => ({
+    sessionId: String(s.t), at: new Date(s.t).toISOString(), module: s.m, exercise: s.g,
+    score: { right: s.r, wrong: s.w, accuracy: s.r + s.w ? Math.round((100 * s.r) / (s.r + s.w)) : null,
+      seconds: s.secs ?? null, secondsPerCard: s.secs && s.r + s.w ? Math.round(s.secs / (s.r + s.w)) : null },
+    missed: s.miss || [],
+  });
+  return {
+    sessions: sessions.filter(s => !s.ai).slice(0, limit).map(row),
+    history: sessions.slice(0, 50).map(s => ({ at: new Date(s.t).toISOString(), module: s.m, exercise: s.g,
+      right: s.r, wrong: s.w, seconds: s.secs ?? null, grade: s.ai?.grade ?? null })),
+  };
+}
+
+/** The reviews in a reply that name a sitting we have, cleaned to the fields we keep. */
+export function reviewRows(sessions = [], reply) {
+  const ids = new Set(sessions.map(s => String(s.t)));
+  const list = Array.isArray(reply?.reviews) ? reply.reviews : Array.isArray(reply?.payload?.reviews) ? reply.payload.reviews : [];
+  const str = (v, n) => typeof v === 'string' ? v.slice(0, n) : '';
+  const strs = v => (Array.isArray(v) ? v : []).filter(x => typeof x === 'string').slice(0, 6).map(x => x.slice(0, 300));
+  return list.filter(r => r && ids.has(String(r.sessionId))).map(r => ({
+    sessionId: String(r.sessionId),
+    ai: { grade: str(r.grade, 12), summary: str(r.summary, 600), strengths: strs(r.strengths),
+      fixes: strs(r.fixes), next: str(r.next, 300) },
+  }));
+}
+
+/** Put the accepted reviews beside the sittings' own scores. Returns what undo needs, as JSON. */
+export function attachReviews(sessions = [], rows, accepted = null) {
+  const take = new Map(rows.filter(r => !accepted || accepted.includes(r.sessionId)).map(r => [r.sessionId, r.ai]));
+  const prev = {};
+  for (const s of sessions) {
+    const ai = take.get(String(s.t));
+    if (!ai) continue;
+    prev[String(s.t)] = s.ai || null;
+    s.ai = { ...ai, at: Date.now() };
+  }
+  return prev;
+}
+
+/** Undo attachReviews: each sitting gets back what it had before. */
+export function detachReviews(sessions = [], prev = {}) {
+  for (const s of sessions) {
+    if (!(String(s.t) in prev)) continue;
+    if (prev[String(s.t)]) s.ai = prev[String(s.t)]; else delete s.ai;
+  }
 }
