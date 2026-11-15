@@ -980,6 +980,7 @@ try {
     ?.cards.find(c => c.front === missedCard);
   check(noted?.note === 'I keep mixing this one up', 'and it lands on the card itself',
     JSON.stringify(noted?.note));
+  await until(() => noteRow().textContent.includes('mixing this one up'));   // after the library reloads
   check(noteRow().textContent.includes('mixing this one up'), 'and shows straight away');
 
   // ---- 46. the slate takes a finger, and the word fits on it ----

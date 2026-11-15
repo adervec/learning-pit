@@ -13,6 +13,11 @@ const t = window.t || Object.assign((k, p) => fill(k, p),
 // A moment as the reader writes it — their language, their clock (font.js's shared settings).
 const stamp = ms => window.appFont?.fmt?.dateTime ? window.appFont.fmt.dateTime(ms)
   : new Date(ms).toLocaleString(window.appFont?.locale?.() || undefined);
+// A short weekday and a short date in the reader's language (Intl, through font.js when present).
+const weekday = ms => window.appFont?.fmt?.custom ? window.appFont.fmt.custom(ms, { weekday: 'short' })
+  : new Date(ms).toLocaleDateString(undefined, { weekday: 'short' });
+const shortDate = ms => window.appFont?.fmt?.custom ? window.appFont.fmt.custom(ms, { month: 'short', day: 'numeric' })
+  : new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 // A stored day ('YYYY-MM-DD', the learner's local day) as the reader writes dates.
 const dayLabel = d => window.appFont?.fmt?.date ? window.appFont.fmt.date(d + 'T00:00:00') : d;
 // The dictionary arrives after the first screen is drawn; draw it again in the reader's language.
@@ -638,9 +643,13 @@ function lastStudied(m) {
   let last = 0;
   for (const card of m.cards) last = Math.max(last, srs[cardKey(m.id, card)]?.t || 0);
   if (!last) return '';
-  const days = Math.floor((Date.now() - last) / 86400000);
-  return days === 0 ? 'today' : days === 1 ? 'yesterday' : days < 30 ? `${days} days ago`
-    : days < 365 ? `${Math.round(days / 30)} months ago` : 'over a year ago';
+  return daysAgo(Math.floor((Date.now() - last) / 86400000));
+}
+// "today", "yesterday", "3 days ago", "2 months ago" — Intl writes them in the reader's language.
+function daysAgo(days) {
+  const rtf = new Intl.RelativeTimeFormat(window.appFont?.locale?.() || undefined, { numeric: 'auto' });
+  return days < 30 ? rtf.format(-days, 'day') : days < 365 ? rtf.format(-Math.round(days / 30), 'month')
+    : rtf.format(-Math.max(1, Math.round(days / 365)), 'year');
 }
 
 function tile(m) {
@@ -650,10 +659,10 @@ function tile(m) {
   return `<button class="tile ${opt().kid ? 'big-icon' : ''}" data-act="open" data-id="${esc(m.id)}">
     <span class="tile-icon" aria-hidden="true">${esc(m.icon || '◈')}</span>
     <span class="tile-title">${esc(m.title)}</span>
-    <span class="tile-sub">${c.total} cards${m.tags.length ? ' · ' + esc(m.tags.slice(0, 2).join(' · ')) : ''}</span>
-    ${deadlines()[m.id] ? `<span class="tile-sub deadline">📅 by ${esc(deadlines()[m.id])}</span>` : ''}
+    <span class="tile-sub">${t.n('{n} card', '{n} cards', c.total)}${m.tags.length ? ' · ' + esc(m.tags.slice(0, 2).join(' · ')) : ''}</span>
+    ${deadlines()[m.id] ? `<span class="tile-sub deadline">📅 ${t('by {date}', { date: esc(dayLabel(deadlines()[m.id])) })}</span>` : ''}
     <span class="ring" style="--pct:${pct}"><i>${c.due + c.fresh || '✓'}</i></span>
-    <span class="tile-sub dim">${c.due + c.fresh ? `${c.due} due · ${c.fresh} new` : 'all rested'}${
+    <span class="tile-sub dim">${c.due + c.fresh ? t('{due} due · {fresh} new', { due: c.due, fresh: c.fresh }) : t('all rested')}${
       seen ? ` · ${esc(seen)}` : ''}</span>
   </button>`;
 }
@@ -667,10 +676,10 @@ function libraryHtml(q, tag) {
     .sort((a, b) => opt().sort === 'due' ? workload(b) - workload(a) || a.title.localeCompare(b.title) : 0);
   if (!q) {
     return `${tag && shown.length > 1
-      ? `<button class="btn wide due-all" data-act="drilltag">Drill everything tagged “${esc(tag)}”</button>` : ''}
+      ? `<button class="btn wide due-all" data-act="drilltag">${t('Drill everything tagged “{tag}”', { tag: esc(tag) })}</button>` : ''}
       <div class="tiles">${shown.map(tile).join('')}
-      <button class="tile add" data-act="import">＋<span class="tile-sub">Import module</span></button>
-      <button class="tile add" data-act="newmodule">✎<span class="tile-sub">Write one</span></button>
+      <button class="tile add" data-act="import">＋<span class="tile-sub">${t('Import module')}</span></button>
+      <button class="tile add" data-act="newmodule">✎<span class="tile-sub">${t('Write one')}</span></button>
     </div>`;
   }
   const needle = norm(q);
@@ -687,19 +696,19 @@ function libraryHtml(q, tag) {
   matches = hits;
   return `
     ${mods.length ? `<div class="tiles">${mods.map(tile).join('')}</div>` : ''}
-    ${hits.length ? `<h2>${hits.length} matching card${hits.length > 1 ? 's' : ''}</h2>
-      <button class="btn wide due-all" data-act="drill">Drill these ${Math.min(hits.length, 20)}</button>
+    ${hits.length ? `<h2>${t.n('{n} matching card', '{n} matching cards', hits.length)}</h2>
+      <button class="btn wide due-all" data-act="drill">${t('Drill these {n}', { n: Math.min(hits.length, 20) })}</button>
       <div class="list">${hits.slice(0, 40).map(c => `<div class="li">
         <button class="rowbtn" data-act="open" data-id="${esc(c.mid)}">
           <span>${esc(c.front)}</span><em>${esc(c.back)} · ${esc(c.from)}</em></button>
       </div>`).join('')}</div>` : ''}
-    ${!mods.length && !hits.length ? '<p class="lede">Nothing matches.</p>' : ''}`;
+    ${!mods.length && !hits.length ? `<p class="lede">${t('Nothing matches.')}</p>` : ''}`;
 }
 
 function emptyLibraryNote() {
   if (visible().length || !modules.length) return '';
-  return `<p class="warn">Every module is hidden for ${esc(state.active)}.
-    Turn some back on in <button class="linky" data-act="settings">Settings</button>.</p>`;
+  return `<p class="warn">${t('Every module is hidden for {name}.', { name: esc(state.active) })}
+    ${t('Turn some back on in {settings}.', { settings: `<button class="linky" data-act="settings">${t('Settings')}</button>` })}</p>`;
 }
 
 let matches = [];
@@ -870,54 +879,54 @@ function moduleView(id) {
   if (!m) { view = { name: 'home' }; return home(); }   // deleted underneath us
   const c = counts(m.cards, P().srs, m.id);
   app.innerHTML = `
-    <button class="back" data-act="back">‹ back</button>
+    <button class="back" data-act="back">‹ ${t('back')}</button>
     <h1>${esc(m.title)}</h1>
     <p class="lede">${esc(m.description || '')}</p>
     <div class="stats">
-      <span><b>${c.due}</b>due</span><span><b>${c.fresh}</b>new</span>
-      <span><b>${c.learned}</b>resting</span>${c.paused ? `<span><b>${c.paused}</b>paused</span>` : ''}
-      <span><b>${c.total}</b>total</span>
+      <span><b>${c.due}</b>${t('due')}</span><span><b>${c.fresh}</b>${t('new')}</span>
+      <span><b>${c.learned}</b>${t('resting')}</span>${c.paused ? `<span><b>${c.paused}</b>${t('paused')}</span>` : ''}
+      <span><b>${c.total}</b>${t('total')}</span>
       ${(() => {
         // How this module has actually gone, from the sittings that were on it.
         const mine = (P().stats.sessions || []).filter(s => s.m === m.title);
         const asked = mine.reduce((n, s) => n + (s.r || 0) + (s.w || 0), 0);
         const right = mine.reduce((n, s) => n + (s.r || 0), 0);
-        return asked >= 10 ? `<span><b>${Math.round((100 * right) / asked)}%</b>you get right</span>` : '';
+        return asked >= 10 ? `<span><b>${Math.round((100 * right) / asked)}%</b>${t('you get right')}</span>` : '';
       })()}
     </div>
     ${deadlineBar(m)}
     <div class="row wrap tagrow">
-      <button class="chip ${view.rev ? 'on' : ''}" data-act="rev">⇄ ${view.rev ? 'Answer → question' : 'Question → answer'}</button>
-      <button class="chip ${view.exam ? 'on' : ''}" data-act="exam">◷ ${view.exam ? 'Exam: every card, no scheduling' : 'Practice'}</button>
+      <button class="chip ${view.rev ? 'on' : ''}" data-act="rev">⇄ ${view.rev ? t('Answer → question') : t('Question → answer')}</button>
+      <button class="chip ${view.exam ? 'on' : ''}" data-act="exam">◷ ${view.exam ? t('Exam: every card, no scheduling') : t('Practice')}</button>
       <button class="chip ${deadlines()[m.id] ? 'on' : ''}" data-act="setdeadline" data-id="${esc(m.id)}">
-        ${deadlines()[m.id] ? '📅 ' + esc(deadlines()[m.id]) : '📅 Set a deadline'}</button>
+        📅 ${deadlines()[m.id] ? esc(dayLabel(deadlines()[m.id])) : t('Set a deadline')}</button>
     </div>
-    <button class="btn wide" data-act="surprise" data-id="${esc(m.id)}">▶ Just start
-      <small>whatever suits these cards · about ${
-        minutesFor(Math.min(opt().size, c.due + c.fresh || c.total), P().stats.sessions)} min</small></button>
+    <button class="btn wide" data-act="surprise" data-id="${esc(m.id)}">▶ ${t('Just start')}
+      <small>${t('whatever suits these cards · about {n} min', { n:
+        minutesFor(Math.min(opt().size, c.due + c.fresh || c.total), P().stats.sessions) })}</small></button>
     ${gameList(m, 'drill')}
     ${gameList(m, 'play')}
     ${(() => {
       // The module's own sore teeth, by lapse count — the schedule knows, the learner should too.
       const rough = troubleSpots([m], P().srs, 3);
       if (!rough.length) return '';
-      return `<h2>Rough spots</h2><div class="list">
+      return `<h2>${t('Rough spots')}</h2><div class="list">
         ${rough.map(r => `<div class="li"><span>${esc(r.card.front)}
-          <small class="dim">${r.lapses ? `${r.lapses} lapse${r.lapses === 1 ? '' : 's'}` : 'missed lately'}</small></span></div>`).join('')}
-        <button class="ghost sm" data-act="drillrough" data-id="${esc(m.id)}">Drill just these</button>
+          <small class="dim">${r.lapses ? t.n('{n} lapse', '{n} lapses', r.lapses) : t('missed lately')}</small></span></div>`).join('')}
+        <button class="ghost sm" data-act="drillrough" data-id="${esc(m.id)}">${t('Drill just these')}</button>
       </div>`;
     })()}
     <div class="row wrap">
       ${c.total && c.learned === c.total
-        ? `<button class="ghost" data-act="certificate" data-id="${esc(m.id)}">🎓 Print certificate</button>` : ''}
-      <button class="ghost" data-act="browse" data-id="${esc(m.id)}">Read through</button>
-      ${visible().length > 1 ? `<button class="ghost" data-act="mixwith" data-id="${esc(m.id)}">Mix with…</button>` : ''}
-      <button class="ghost" data-act="grow" data-id="${esc(m.id)}">Ask Claude for more</button>
+        ? `<button class="ghost" data-act="certificate" data-id="${esc(m.id)}">🎓 ${t('Print certificate')}</button>` : ''}
+      <button class="ghost" data-act="browse" data-id="${esc(m.id)}">${t('Read through')}</button>
+      ${visible().length > 1 ? `<button class="ghost" data-act="mixwith" data-id="${esc(m.id)}">${t('Mix with…')}</button>` : ''}
+      <button class="ghost" data-act="grow" data-id="${esc(m.id)}">${t('Ask Claude for more')}</button>
       ${m.src ? `<button class="ghost" data-act="refresh" data-id="${esc(m.id)}"
-        title="${esc(m.src)}">Check ${esc(host(m.src))} for new cards</button>` : ''}
-      <button class="ghost" data-act="edit" data-id="${esc(m.id)}">Edit cards</button>
-      <button class="ghost" data-act="merge" data-id="${esc(m.id)}">Merge into…</button>
-      <button class="ghost" data-act="reset" data-id="${esc(m.id)}">Reset ${esc(state.active)}'s progress</button>
+        title="${esc(m.src)}">${t('Check {site} for new cards', { site: esc(host(m.src)) })}</button>` : ''}
+      <button class="ghost" data-act="edit" data-id="${esc(m.id)}">${t('Edit cards')}</button>
+      <button class="ghost" data-act="merge" data-id="${esc(m.id)}">${t('Merge into…')}</button>
+      <button class="ghost" data-act="reset" data-id="${esc(m.id)}">${t("Reset {name}'s progress", { name: esc(state.active) })}</button>
     </div>`;
 }
 
@@ -943,14 +952,15 @@ function gameList(m, group) {
   const fit = entries.filter(([, g]) => usableCount(g) >= g.min);
   const unfit = entries.filter(([, g]) => usableCount(g) < g.min);
   if (!fit.length) return '';
-  return `<h2>${group === 'drill' ? 'Drills' : 'Games'}</h2>
+  return `<h2>${group === 'drill' ? t('Drills') : t('Games')}</h2>
     <div class="games">${fit.map(([k, g]) => `
       <button class="game" data-act="play" data-id="${esc(m.id)}" data-game="${k}">
         <span class="glyph">${g.glyph}</span>
-        <span><b>${g.label}</b><small>${g.hint}</small></span>
+        <span><b>${t(g.label)}</b><small>${t(g.hint)}</small></span>
       </button>`).join('')}</div>
-    ${unfit.length ? `<p class="lede dim small-note">${unfit.map(([, g]) => esc(g.label)).join(', ')}
-      ${unfit.length === 1 ? 'needs' : 'need'} other kinds of card — pictures, numbers, longer answers.</p>` : ''}`;
+    ${unfit.length ? `<p class="lede dim small-note">${t.n('{games} needs other kinds of card — pictures, numbers, longer answers.',
+      '{games} need other kinds of card — pictures, numbers, longer answers.', unfit.length,
+      { games: unfit.map(([, g]) => esc(t(g.label))).join(', ') })}</p>` : ''}`;
 }
 
 // Ties the sitting back to the day: a session means more when you can see where it landed.
@@ -960,8 +970,8 @@ function goalLine() {
   const done = (P().stats.days || {})[today()] || 0;
   const left = Math.max(0, goal - done);
   return `<p class="lede center">${left
-    ? `${done} of ${goal} today — ${left} to go`
-    : `${done} today. ${opt().kid ? 'All done! ⭐' : 'The day’s work is done.'}`}</p>
+    ? t('{done} of {goal} today — {left} to go', { done, goal, left })
+    : `${t('{n} today.', { n: done })} ${opt().kid ? t('All done!') + ' ⭐' : t('The day’s work is done.')}`}</p>
     <div class="goal"><i style="width:${Math.min(100, Math.round((done / goal) * 100))}%"></i></div>`;
 }
 
@@ -971,15 +981,16 @@ function deadlineBar(m) {
   if (!plan) return '';
   const doneToday = (P().stats.days || {})[today()] || 0;
   if (plan.passed) {
-    return `<p class="warn">That deadline has passed. ${plan.remaining
-      ? `${plan.remaining} cards never got learned — clear the date or set a new one.` : 'Everything was learned in time.'}</p>`;
+    return `<p class="warn">${t('That deadline has passed.')} ${plan.remaining
+      ? t.n('{n} card never got learned — clear the date or set a new one.', '{n} cards never got learned — clear the date or set a new one.', plan.remaining)
+      : t('Everything was learned in time.')}</p>`;
   }
   const sweep = plan.sweep && plan.beyond
-    ? `<p class="lede sweep">Final stretch: ${plan.beyond} card${plan.beyond === 1 ? ' is' : 's are'} scheduled past the date,
-      so each is asked once more before it.</p>` : '';
-  if (!plan.remaining) return `<p class="lede">Ready — every card is learned with ${plan.daysLeft} day${plan.daysLeft === 1 ? '' : 's'} to spare.</p>${sweep}`;
-  return `<p class="lede">${plan.remaining} cards left, ${plan.daysLeft} day${plan.daysLeft === 1 ? '' : 's'} to go —
-    <b>${plan.perDay} a day</b> from here.</p>${sweep}
+    ? `<p class="lede sweep">${t.n('Final stretch: {n} card is scheduled past the date, so each is asked once more before it.',
+      'Final stretch: {n} cards are scheduled past the date, so each is asked once more before it.', plan.beyond)}</p>` : '';
+  if (!plan.remaining) return `<p class="lede">${t.n('Ready — every card is learned with {n} day to spare.', 'Ready — every card is learned with {n} days to spare.', plan.daysLeft)}</p>${sweep}`;
+  return `<p class="lede">${t.n('{n} card left', '{n} cards left', plan.remaining)}, ${t.n('{n} day to go', '{n} days to go', plan.daysLeft)} —
+    <b>${t('{n} a day', { n: plan.perDay })}</b> ${t('from here.')}</p>${sweep}
     <div class="goal"><i style="width:${Math.min(100, Math.round((doneToday / plan.perDay) * 100))}%"></i></div>`;
 }
 
@@ -989,13 +1000,13 @@ function examBreakdown() {
   if (session.module.id !== 'exam') return '';
   const rows = examScore(session.cards, session.missed || []);
   if (rows.length < 2) return '';
-  return `<h2>Where it went</h2>
+  return `<h2>${t('Where it went')}</h2>
     <div class="list">${rows.map(r => `<div class="bar-row">
       <span>${esc(r.name)}<small>${r.asked - r.wrong}/${r.asked}</small></span>
       <div class="bar ${r.pct < 60 ? 'weak' : ''}"><i style="width:${r.pct}%"></i></div>
     </div>`).join('')}</div>
     ${session.missed?.length ? `<div class="row"><button class="btn wide" data-act="drillmissed">
-      Drill the ${new Set((session.missed || []).map(c => c.front)).size} you missed</button></div>` : ''}`;
+      ${t('Drill the {n} you missed', { n: new Set((session.missed || []).map(c => c.front)).size })}</button></div>` : ''}`;
 }
 
 // The maker's hub keeps habits and a character sheet from what its apps report: one row per
@@ -1038,8 +1049,8 @@ function results() {
     portalActivity(session.startedAt);
     pushCoach();
     blip(stars >= 2 ? 'win' : 'good');
-    if (session.sticker) toast(`New sticker: ${session.sticker.emoji} ${session.sticker.name}`);
-    if (session.promoted) toast(`You are now ${session.promoted}.`);
+    if (session.sticker) toast(t('New sticker: {sticker}', { sticker: `${session.sticker.emoji} ${t(session.sticker.name)}` }));
+    if (session.promoted) toast(t('You are now {rank}.', { rank: t(session.promoted) }));
     setTimeout(renderBar);  // the bar was drawn before these stars existed
   }
   if (session.key === 'duel') {
@@ -1052,29 +1063,29 @@ function results() {
     app.innerHTML = `
       <div class="pit done"><div class="card"><div class="face">
         <span class="score">${table.map(p => p.score).join(' — ')}</span>
-        <p>${drawn ? 'A draw. Again?'
-          : winners.length > 1 ? `${winners.map(p => esc(p.name)).join(' and ')} tie for it.`
-          : `${esc(winners[0].name)} wins.`}</p>
+        <p>${drawn ? t('A draw. Again?')
+          : winners.length > 1 ? t('{names} tie for it.', { names: winners.map(p => esc(p.name)).join(', ') })
+          : t('{name} wins.', { name: esc(winners[0].name) })}</p>
       </div></div></div>
       <div class="list">${table.map(p => `<div class="li">
         <span>${esc((state.profiles[p.name]?.opts || {}).avatar || '◎')} ${esc(p.name)}</span>
         <b>${p.score}</b></div>`).join('')}</div>
       <div class="row">
-        <button class="btn" data-act="again">Again</button>
-        <button class="btn ghost" data-act="home">Done</button>
+        <button class="btn" data-act="again">${t('Again')}</button>
+        <button class="btn ghost" data-act="home">${t('Done')}</button>
       </div>`;
     say(`${table.map(p => `${p.name} ${p.score}`).join(', ')}. ${
-      drawn ? 'A draw.' : winners.map(p => p.name).join(' and ') + ' wins.'}`);
+      drawn ? t('A draw.') : t('{name} wins.', { name: winners.map(p => p.name).join(', ') })}`);
     return;
   }
   if (!right && !wrong) {                    // ran out of time before answering anything
     app.innerHTML = `
       <div class="pit done"><div class="card"><div class="face">
-        <p>No answers that time. The pit waits.</p>
+        <p>${t('No answers that time. The pit waits.')}</p>
       </div></div></div>
       <div class="row">
-        <button class="btn" data-act="again">Again</button>
-        <button class="btn ghost" data-act="home">Done</button>
+        <button class="btn" data-act="again">${t('Again')}</button>
+        <button class="btn ghost" data-act="home">${t('Done')}</button>
       </div>`;
     return;
   }
@@ -1083,50 +1094,48 @@ function results() {
       <div class="card"><div class="face">
         ${opt().kid
           ? `<span class="stars">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</span>
-             <p>${stars === 3 ? 'Every single one!' : stars === 2 ? 'Great work.' : 'Good try — go again!'}</p>
-             ${session.sticker ? `<p class="won">${session.sticker.emoji} ${esc(session.sticker.name)} unlocked!</p>` : ''}`
+             <p>${stars === 3 ? t('Every single one!') : stars === 2 ? t('Great work.') : t('Good try — go again!')}</p>
+             ${session.sticker ? `<p class="won">${t('{sticker} unlocked!', { sticker: `${session.sticker.emoji} ${esc(t(session.sticker.name))}` })}</p>` : ''}`
           : `<span class="score">${right}<small>/${total}</small></span>
-             <p>${ratio === 1 ? 'Flawless. Logic is the beginning of wisdom.' : ratio >= 0.7 ? 'Solid. The pattern is forming.' : 'Repetition is the instrument. Again.'}</p>`}
+             <p>${ratio === 1 ? t('Flawless. Logic is the beginning of wisdom.') : ratio >= 0.7 ? t('Solid. The pattern is forming.') : t('Repetition is the instrument. Again.')}</p>`}
       </div></div>
     </div>
     ${(() => {
       const secs = Math.round((Date.now() - (session.startedAt || Date.now())) / 1000);
       const mins = Math.floor(secs / 60);
-      return `<p class="lede center">${right + wrong} cards in ${
-        mins ? `${mins} min ${secs % 60}s` : `${secs}s`}</p>`;
+      return `<p class="lede center">${t.n('{n} card in {time}', '{n} cards in {time}', right + wrong,
+        { time: mins ? t('{m} min {s}s', { m: mins, s: secs % 60 }) : t('{s}s', { s: secs }) })}</p>`;
     })()}
     ${goalLine()}
     ${examBreakdown()}
-    ${session.mixups?.length ? `<h2>You mixed these up</h2>
+    ${session.mixups?.length ? `<h2>${t('You mixed these up')}</h2>
       <div class="list">${[...new Map(session.mixups.map(x => [x.asked + '|' + x.took, x])).values()]
         .slice(0, 6).map((x, i) => `<div class="li missed"><span>
-          <b>${fmt(x.asked)}</b><em>you gave “${fmt(x.answer)}” — that belongs to “${fmt(x.took)}”</em>
-        </span><button class="ghost sm" data-act="drillpair" data-i="${i}">drill the pair</button></div>`).join('')}</div>` : ''}
-    ${session.slow?.length ? `<h2>Right, but slowly</h2>
-      <p class="lede small-note">Answers that took well over your usual pace. The schedule
-      thinks these are safe; the hesitation says otherwise.</p>
+          <b>${fmt(x.asked)}</b><em>${t('you gave “{answer}” — that belongs to “{other}”', { answer: fmt(x.answer), other: fmt(x.took) })}</em>
+        </span><button class="ghost sm" data-act="drillpair" data-i="${i}">${t('drill the pair')}</button></div>`).join('')}</div>` : ''}
+    ${session.slow?.length ? `<h2>${t('Right, but slowly')}</h2>
+      <p class="lede small-note">${t('Answers that took well over your usual pace. The schedule thinks these are safe; the hesitation says otherwise.')}</p>
       <div class="list">${[...new Map(session.slow.map(c => [c.front, c])).values()].slice(0, 6)
         .map(c => `<div class="li missed"><span><b>${fmt(c.front)}</b><em>${fmt(c.back)}</em></span></div>`)
         .join('')}</div>` : ''}
-    ${session.quick?.length ? `<h2>Wrong in a flash</h2>
-      <p class="lede small-note">Answered in under ${quickBefore(P().stats.sessions)} seconds, and wrong — a guess, or a
-      blank. The attempt to retrieve is the learning; give these a moment next time.</p>
+    ${session.quick?.length ? `<h2>${t('Wrong in a flash')}</h2>
+      <p class="lede small-note">${t('Answered in under {n} seconds, and wrong — a guess, or a blank. The attempt to retrieve is the learning; give these a moment next time.', { n: quickBefore(P().stats.sessions) })}</p>
       <div class="list">${[...new Map(session.quick.map(c => [c.front, c])).values()].slice(0, 6)
         .map(c => `<div class="li missed"><span><b>${fmt(c.front)}</b><em>${fmt(c.back)}</em></span></div>`)
         .join('')}</div>` : ''}
-    ${session.missed?.length ? `<h2>Worth another look</h2>
+    ${session.missed?.length ? `<h2>${t('Worth another look')}</h2>
       <div class="list">${[...new Map(session.missed.map(c => [c.front, c])).values()].slice(0, 8)
         .map((c, i) => `<div class="li missed">
           <span><b>${fmt(c.front)}</b><em>${fmt(c.back)}</em>${c.note ? `<em class="dim">${fmt(c.note)}</em>` : ''}</span>
-          <button class="ghost sm" data-act="notecard" data-i="${i}">${c.note ? 'edit note' : '＋ note'}</button>
+          <button class="ghost sm" data-act="notecard" data-i="${i}">${c.note ? t('edit note') : '＋ ' + t('note')}</button>
         </div>`).join('')}</div>
       ${navigator.clipboard?.writeText ? `<button class="ghost sm" data-act="sharpen">
-        Ask Claude to sharpen these</button>` : ''}` : ''}
+        ${t('Ask Claude to sharpen these')}</button>` : ''}` : ''}
     <div class="row">
-      <button class="btn" data-act="again">Again</button>
+      <button class="btn" data-act="again">${t('Again')}</button>
       ${!session.exam && modules.some(x => x.id === session.module.id)
-        ? `<button class="btn ghost" data-act="anotherway">Another way</button>` : ''}
-      <button class="btn ghost" data-act="home">Done</button>
+        ? `<button class="btn ghost" data-act="anotherway">${t('Another way')}</button>` : ''}
+      <button class="btn ghost" data-act="home">${t('Done')}</button>
     </div>`;
   say(`Session complete. ${right} of ${total} correct.`);
 }
@@ -1568,24 +1577,26 @@ function editView(id) {
 // Reviews per profile over the last 7 days — cousins keep score whether you build it or not.
 // Earned ones in colour, the next one dim with its price on it — a child needs to see what
 // they are working towards, not just what they have.
+// The stickers are named in core.js; their names are translated here.
+// i18n-keys: Hatchling | Butterfly | Steady | Quick | Diver | Night owl | Dragon | Launch | Far out | Crown
 function stickerShelf(stars) {
   const got = new Set(stickersFor(stars).map(s => s.at));
   const next = STICKERS.find(s => !got.has(s.at));
-  return `<h2>Stickers</h2>
+  return `<h2>${t('Stickers')}</h2>
     <div class="shelf">${STICKERS.map(s => got.has(s.at)
-      ? `<span class="sticker" title="${esc(s.name)}">${s.emoji}</span>`
-      : `<span class="sticker locked" title="${s.at} stars">${s.emoji}<small>${s.at}★</small></span>`).join('')}</div>
-    ${next ? `<p class="lede">${next.at - stars} more star${next.at - stars === 1 ? '' : 's'} for ${next.emoji} ${esc(next.name)}.</p>`
-      : '<p class="lede">Every sticker collected.</p>'}`;
+      ? `<span class="sticker" title="${esc(t(s.name))}">${s.emoji}</span>`
+      : `<span class="sticker locked" title="${esc(t.n('{n} star', '{n} stars', s.at))}">${s.emoji}<small>${s.at}★</small></span>`).join('')}</div>
+    ${next ? `<p class="lede">${t.n('{n} more star for {sticker}.', '{n} more stars for {sticker}.', next.at - stars, { sticker: `${next.emoji} ${esc(t(next.name))}` })}</p>`
+      : `<p class="lede">${t('Every sticker collected.')}</p>`}`;
 }
 
 function familyBoard() {
   if (Object.keys(state.profiles).length < 2) return '';
   const rows = weeklyTotals(state.profiles);
   const top = Math.max(1, rows[0].total);
-  return `<h2>This week</h2>
+  return `<h2>${t('This week')}</h2>
     ${rows.map(r => `<div class="bar-row">
-      <span><b class="who"><span aria-hidden="true">${esc(r.avatar)}</span> ${esc(r.name)}</b><small>${r.total} card${r.total === 1 ? '' : 's'}</small></span>
+      <span><b class="who"><span aria-hidden="true">${esc(r.avatar)}</span> ${esc(r.name)}</b><small>${t.n('{n} card', '{n} cards', r.total)}</small></span>
       <div class="bar"><i style="width:${Math.round((r.total / top) * 100)}%"></i></div>
     </div>`).join('')}`;
 }
@@ -1595,10 +1606,10 @@ function familyBoard() {
 function confusionsList() {
   const worst = (P().stats.confusions || []).filter(x => x.n >= 2).slice(0, 5);
   if (!worst.length) return '';
-  return `<h2>Often confused</h2>
+  return `<h2>${t('Often confused')}</h2>
     <div class="list">${worst.map(x => `<div class="li">
       <span><b>${esc(x.a)}</b> ↔ <b>${esc(x.b)}</b> <small>${x.n}×</small></span>
-      <button class="ghost sm" data-act="drillconfusion" data-a="${esc(x.a)}" data-b="${esc(x.b)}">drill the pair</button>
+      <button class="ghost sm" data-act="drillconfusion" data-a="${esc(x.a)}" data-b="${esc(x.b)}">${t('drill the pair')}</button>
     </div>`).join('')}</div>`;
 }
 
@@ -1607,11 +1618,11 @@ function confusionsList() {
 function subjects() {
   const tags = tagTotals(visible(), P().srs).slice(0, 6);
   if (tags.length < 2) return '';
-  return `<h2>By subject</h2>
-    ${tags.map(t => `<div class="bar-row">
-      <button class="rowbtn" data-act="subject" data-k="${esc(t.tag)}">
-        <span>${esc(t.tag)}<small>${t.learned}/${t.total}${t.due ? ` · ${t.due} due` : ''}</small></span></button>
-      <div class="bar ${t.due ? 'weak' : ''}"><i style="width:${Math.round((t.learned / t.total) * 100)}%"></i></div>
+  return `<h2>${t('By subject')}</h2>
+    ${tags.map(g => `<div class="bar-row">
+      <button class="rowbtn" data-act="subject" data-k="${esc(g.tag)}">
+        <span>${esc(g.tag)}<small>${g.learned}/${g.total}${g.due ? ` · ${t('{n} due', { n: g.due })}` : ''}</small></span></button>
+      <div class="bar ${g.due ? 'weak' : ''}"><i style="width:${Math.round((g.learned / g.total) * 100)}%"></i></div>
     </div>`).join('')}`;
 }
 
@@ -1619,15 +1630,12 @@ function subjects() {
 function sittings() {
   const log = (P().stats.sessions || []).slice(0, 8);
   if (!log.length) return '';
-  const when = t => {
-    const days = Math.floor((Date.now() - t) / 86400000);
-    return days === 0 ? 'today' : days === 1 ? 'yesterday' : `${days} days ago`;
-  };
-  return `<h2>Recent sittings</h2>
+  const when = at => daysAgo(Math.floor((Date.now() - at) / 86400000));
+  return `<h2>${t('Recent sittings')}</h2>
     <div class="list">${log.map(s => `<div class="li${s.ai ? ' reviewed' : ''}">
-      <span>${esc(s.m)} <small>${esc(GAMES[s.g]?.label || s.g)} · ${when(s.t)}</small>
+      <span>${esc(s.m)} <small>${esc(GAMES[s.g] ? t(GAMES[s.g].label) : s.g)} · ${when(s.t)}</small>
         ${s.ai ? `<small class="aireview" title="${esc([s.ai.summary, ...(s.ai.fixes || []), s.ai.next].filter(Boolean).join('\n'))}">
-          Tutor: <b>${esc(s.ai.grade)}</b> — ${esc(s.ai.summary)}${s.ai.next ? ` <em>Next: ${esc(s.ai.next)}</em>` : ''}</small>` : ''}</span>
+          ${t('Tutor:')} <b>${esc(s.ai.grade)}</b> — ${esc(s.ai.summary)}${s.ai.next ? ` <em>${t('Next: {step}', { step: esc(s.ai.next) })}</em>` : ''}</small>` : ''}</span>
       <b class="${s.w === 0 ? 'clean' : ''}">${s.r}/${s.r + s.w}</b>
     </div>`).join('')}</div>`;
 }
@@ -1642,28 +1650,34 @@ function recapLine() {
   const secs = (P().stats.sessions || [])
     .filter(s => s.t > week && s.secs > 0 && s.secs < 4 * 3600)
     .reduce((n, s) => n + s.secs, 0);
-  const spent = secs >= 3600 ? `${(secs / 3600).toFixed(1)} hours`
-    : secs >= 60 ? `${Math.round(secs / 60)} minutes` : '';
-  return `<p class="lede">This week: <b>${w.reviews}</b> reviews on ${w.active} of 7 days,
-    <b>${w.pct}%</b> right${w.best.n ? `, best day ${w.best.n}` : ''}${spent ? `, ${spent} in the pit` : ''}.
-    <button class="linky" data-act="recap">share it</button></p>`;
+  const num = (n, max = 0) => window.appFont?.fmt?.number ? window.appFont.fmt.number(n, { max }) : n.toFixed(max);
+  const spent = secs >= 3600 ? t('{n} hours', { n: num(secs / 3600, 1) })
+    : secs >= 60 ? t.n('{n} minute', '{n} minutes', Math.round(secs / 60)) : '';
+  return `<p class="lede">${t('This week: {reviews} reviews on {days} of 7 days, {pct} right',
+      { reviews: `<b>${w.reviews}</b>`, days: w.active, pct: `<b>${w.pct}%</b>` })}${
+    w.best.n ? ', ' + t('best day {n}', { n: w.best.n }) : ''}${spent ? ', ' + t('{time} in the pit', { time: spent }) : ''}.
+    <button class="linky" data-act="recap">${t('share it')}</button></p>`;
 }
 
 // Only worth saying once there is enough of it to be true, which bestTime() decides.
 function timeOfDayLine() {
-  const t = bestTime(P().stats.sessions || []);
-  if (!t || t.best.pct - t.worst.pct < 10) return '';
-  return `<p class="lede">You answer best in the <b>${esc(t.best.name)}</b> — ${t.best.pct}% there
-    against ${t.worst.pct}% ${esc(t.worst.name)}.</p>`;
+  const b = bestTime(P().stats.sessions || []);
+  if (!b || b.best.pct - b.worst.pct < 10) return '';
+  // i18n-keys: morning | afternoon | evening | late at night
+  return `<p class="lede">${t('You answer best in the {best} — {bestPct} there against {worstPct} {worst}.',
+    { best: `<b>${esc(t(b.best.name))}</b>`, bestPct: b.best.pct + '%', worstPct: b.worst.pct + '%', worst: esc(t(b.worst.name)) })}</p>`;
 }
 
 // The long view, once there is one: a month of days is where a week stops being the story.
 function yearLine() {
   const y = yearSummary(P().stats);
   if (y.active < 30) return '';
-  const when = y.busiest ? new Date(y.busiest.month + '-15T12:00:00').toLocaleDateString(undefined, { month: 'long' }) : '';
-  return `<p class="lede">Last twelve months: <b>${y.reviews}</b> reviews on ${y.active} days, <b>${y.pct}%</b> right${
-    when ? `, busiest in ${esc(when)}` : ''}.</p>`;
+  const busiest = y.busiest ? new Date(y.busiest.month + '-15T12:00:00') : null;
+  const month = busiest ? (window.appFont?.fmt?.custom ? window.appFont.fmt.custom(busiest, { month: 'long' })
+    : busiest.toLocaleDateString(undefined, { month: 'long' })) : '';
+  return `<p class="lede">${t('Last twelve months: {reviews} reviews on {days} days, {pct} right',
+    { reviews: `<b>${y.reviews}</b>`, days: y.active, pct: `<b>${y.pct}%</b>` })}${
+    month ? ', ' + t('busiest in {month}', { month: esc(month) }) : ''}.</p>`;
 }
 
 function recapText() {
@@ -1710,77 +1724,74 @@ function progressView() {
 
   if (opt().kid) {
     app.innerHTML = `
-      <button class="back" data-act="back">‹ back</button>
+      <button class="back" data-act="back">‹ ${t('back')}</button>
       <h1>${opt().avatar} ${esc(state.active)}</h1>
       <div class="pit done"><div class="card"><div class="face">
         <span class="stars big">${st.stars || 0}★</span>
-        <p>${st.streak || 0} day${st.streak === 1 ? '' : 's'} in a row</p>
+        <p>${t.n('{n} day in a row', '{n} days in a row', st.streak || 0)}</p>
       </div></div></div>
       ${rankLine()}
       ${stickerShelf(st.stars || 0)}
-      <h2>What you know</h2>
+      <h2>${t('What you know')}</h2>
       ${mastery.length ? mastery.map(({ m, c }) => `<div class="bar-row">
-        <span>${esc(m.title)}<small>${c.learned} of ${c.total}</small></span>
+        <span>${esc(m.title)}<small>${t('{done} of {total}', { done: c.learned, total: c.total })}</small></span>
         <div class="bar"><i style="width:${Math.round((c.learned / c.total) * 100)}%"></i></div>
-      </div>`).join('') : '<p class="lede">Play a game to fill this in.</p>'}
+      </div>`).join('') : `<p class="lede">${t('Play a game to fill this in.')}</p>`}
       ${familyBoard()}`;
     return;
   }
   app.innerHTML = `
-    <button class="back" data-act="back">‹ back</button>
-    <h1>${esc(state.active)}'s progress</h1>
+    <button class="back" data-act="back">‹ ${t('back')}</button>
+    <h1>${t("{name}'s progress", { name: esc(state.active) })}</h1>
     <div class="stats">
-      <span><b>${st.streak || 0}</b>day streak</span>
+      <span><b>${st.streak || 0}</b>${t('day streak')}</span>
       ${(st.bestStreak || 0) > (st.streak || 0)
-        ? `<span><b>${st.bestStreak}</b>longest ever</span>` : ''}
-      <span><b>${st.reviews || 0}</b>reviews</span>
-      <span><b>${acc}%</b>correct</span>
-      ${week.reviews ? `<span><b>${Math.round((week.hits / week.reviews) * 100)}%</b>this week</span>` : ''}
-      <span><b>${mastery.reduce((n, x) => n + x.c.learned, 0)}</b>cards resting</span>
+        ? `<span><b>${st.bestStreak}</b>${t('longest ever')}</span>` : ''}
+      <span><b>${st.reviews || 0}</b>${t('reviews')}</span>
+      <span><b>${acc}%</b>${t('correct')}</span>
+      ${week.reviews ? `<span><b>${Math.round((week.hits / week.reviews) * 100)}%</b>${t('this week')}</span>` : ''}
+      <span><b>${mastery.reduce((n, x) => n + x.c.learned, 0)}</b>${t('cards resting')}</span>
     </div>
     ${rankLine()}
     ${recapLine()}
     ${timeOfDayLine()}
     ${yearLine()}
-    <h2>Activity</h2>
-    <div class="heat" role="img" aria-label="Reviews per day over the last 17 weeks. ${
-      Object.values(days).reduce((a, b) => a + b, 0)} reviews on ${Object.keys(days).length} days.">${cells.join('')}</div>
-    <h2>Coming up</h2>
-    <p class="lede small-note">A card you get right comes back in a day, then three, then
-    further apart each time; one you get wrong comes back inside the sitting.</p>
-    <div class="fc">${fc.map((n, i) => `<span title="${n} cards">
+    <h2>${t('Activity')}</h2>
+    <div class="heat" role="img" aria-label="${esc(t('Reviews per day over the last 17 weeks. {reviews} reviews on {days} days.',
+      { reviews: Object.values(days).reduce((a, b) => a + b, 0), days: Object.keys(days).length }))}">${cells.join('')}</div>
+    <h2>${t('Coming up')}</h2>
+    <p class="lede small-note">${t('A card you get right comes back in a day, then three, then further apart each time; one you get wrong comes back inside the sitting.')}</p>
+    <div class="fc">${fc.map((n, i) => `<span title="${esc(t.n('{n} card', '{n} cards', n))}">
       <i style="height:${Math.round((n / peak) * 100)}%"></i>
-      <small>${i === 0 ? 'today' : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date(now + i * 86400000).getDay()]}</small>
+      <small>${i === 0 ? t('today') : weekday(now + i * 86400000)}</small>
       <b>${n || ''}</b></span>`).join('')}</div>
-    ${monthTotal ? `<p class="lede small-note">Next 30 days: ${monthTotal} review${monthTotal === 1 ? '' : 's'},
-      heaviest ${heaviest === 0 ? 'today' : `on ${new Date(now + heaviest * 86400000)
-        .toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`} (${month[heaviest]}).</p>` : ''}
-    <h2>Mastery</h2>
+    ${monthTotal ? `<p class="lede small-note">${t.n('Next 30 days: {n} review', 'Next 30 days: {n} reviews', monthTotal)},
+      ${heaviest === 0 ? t('heaviest today ({n}).', { n: month[heaviest] })
+        : t('heaviest on {date} ({n}).', { date: esc(shortDate(now + heaviest * 86400000)), n: month[heaviest] })}</p>` : ''}
+    <h2>${t('Mastery')}</h2>
     ${mastery.length ? mastery.map(({ m, c }) => `<div class="bar-row">
       <span>${esc(m.title)}<small>${c.learned}/${c.total}</small></span>
       <div class="bar"><i style="width:${Math.round((c.learned / c.total) * 100)}%"></i></div>
-    </div>`).join('') : '<p class="lede">Nothing studied yet.</p>'}
+    </div>`).join('') : `<p class="lede">${t('Nothing studied yet.')}</p>`}
     ${confusionsList()}
     ${subjects()}
     ${sittings()}
     ${familyBoard()}
-    ${stuck.length ? `<h2>Sticking points</h2>
-      <p class="lede">The cards that keep going wrong, most recent trouble first. Drill them on their
-      own, rewrite the ones that ask too much at once, or pause a card and come back to it later.</p>
-      <div class="row"><button class="btn wide" data-act="drillstuck">Drill these ${stuck.length}</button></div>
+    ${stuck.length ? `<h2>${t('Sticking points')}</h2>
+      <p class="lede">${t('The cards that keep going wrong, most recent trouble first. Drill them on their own, rewrite the ones that ask too much at once, or pause a card and come back to it later.')}</p>
+      <div class="row"><button class="btn wide" data-act="drillstuck">${t('Drill these {n}', { n: stuck.length })}</button></div>
       <div class="list">${stuck.slice(0, 10).map(l => `
         <div class="li">
           <button class="rowbtn" data-act="edit" data-id="${esc(l.module.id)}">
             <span>${esc(l.card.front)}</span><em>${esc(l.module.title)} · ${
-              l.misses ? `${l.misses} of the last 6 missed` : `missed ${l.lapses}×`}</em></button>
-          <button class="ghost sm" data-act="pausekey" data-k="${esc(cardKey(l.module.id, l.card))}">pause</button>
+              l.misses ? t('{n} of the last 6 missed', { n: l.misses }) : t('missed {n}×', { n: l.lapses })}</em></button>
+          <button class="ghost sm" data-act="pausekey" data-k="${esc(cardKey(l.module.id, l.card))}">${t('pause')}</button>
         </div>`).join('')}
-        ${stuck.length > 10 ? `<p class="lede dim">…and ${stuck.length - 10} more</p>` : ''}</div>` : ''}
-    <h2>Ask a tutor</h2>
-    <p class="lede">Hand this progress to an agent through a folder on this device — CoworkSyncHub,
-    Claude Desktop, or a person — and it will say what to study next. Nothing is uploaded.</p>
+        ${stuck.length > 10 ? `<p class="lede dim">${t('…and {n} more', { n: stuck.length - 10 })}</p>` : ''}</div>` : ''}
+    <h2>${t('Ask a tutor')}</h2>
+    <p class="lede">${t('Hand this progress to an agent through a folder on this device — CoworkSyncHub, Claude Desktop, or a person — and it will say what to study next. Nothing is uploaded.')}</p>
     <div id="coachhost"></div>
-    <p class="lede" id="coachreply" style="display:none;white-space:pre-wrap"></p>`;
+    <p class="lede" id="coachreply" data-clamp style="display:none;white-space:pre-wrap"></p>`;
   mountCoach();
 }
 
@@ -2443,6 +2454,8 @@ function finish() {
   render();
 }
 
+// Exercise names and hints are shown through t(g.label) / t(g.hint).
+// i18n-keys: Recall | Flip the card, rate yourself | Study first | See a few, then be asked them | Identify | Pick the right answer | Write it | Type the answer from memory | Explain it | Write what you remember, then check yourself | Fill the blank | One word missing from the answer | Hands free | It asks aloud, you answer out loud | Say it | Hear it, then say it yourself | Ladder | Each card asked the way it has earned | Duel | Everyone on this device takes turns | Sort | Which module does this card belong to? | Number pad | Tap the digits, no keyboard | True or false | Is that really the answer? | Point at it | Hear the word, tap the picture | Write it out | Trace the word with a finger | Spell it | Build the answer from letters | Order it | Put the steps in the right order | Speed round | One minute, as many as you can | Match | Pair them up, no timer
 const GAMES = {
   recall: {
     label: 'Recall', glyph: '◈', hint: 'Flip the card, rate yourself', min: 1, group: 'drill',
@@ -3207,12 +3220,14 @@ const learnedCount = () => visible().reduce((n, m) => {
 }, 0);
 
 // The badge, and the standing behind it. Shown wherever a learner looks at themselves.
+// The ranks are named in core.js; their names are translated here.
+// i18n-keys: Initiate | Cadet | Adept | Scholar | Archivist | Keeper of the Pit
 function rankLine() {
   const r = rankFor(learnedCount());
-  return `<div class="rank" title="${r.next ? `${r.toGo} more cards learned to reach ${r.next.name}` : 'Nothing above this'}">
+  return `<div class="rank" title="${esc(r.next ? t.n('{n} more card learned to reach {rank}', '{n} more cards learned to reach {rank}', r.toGo, { rank: t(r.next.name) }) : t('Nothing above this'))}">
     <span class="rank-glyph">${r.rank.glyph}</span>
-    <span><b>${esc(r.rank.name)}</b>${r.next
-      ? `<small>${r.toGo} more to ${esc(r.next.name)}</small>` : '<small>the deepest rank</small>'}</span>
+    <span><b>${esc(t(r.rank.name))}</b>${r.next
+      ? `<small>${t('{n} more to {rank}', { n: r.toGo, rank: esc(t(r.next.name)) })}</small>` : `<small>${t('the deepest rank')}</small>`}</span>
     <i class="rank-bar"><i style="width:${r.pct}%"></i></i>
   </div>`;
 }
