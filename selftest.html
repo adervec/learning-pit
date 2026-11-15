@@ -35,6 +35,9 @@ clock.onmessage = e => { const r = waiters.get(e.data); waiters.delete(e.data); 
 const wait = ms => new Promise(r => { waiters.set(++waitN, r); clock.postMessage([waitN, ms]); });
 
 // The app and this page share an origin, so its storage is ours. Put it back afterwards.
+// The suite reads English off the screen, whatever language this browser has picked.
+const langWas = localStorage.getItem('maker-lang');
+localStorage.setItem('maker-lang', 'en');
 // Every pit.* key there now, plus the ones a run may create — the erase case removes them all.
 const KEYS = [...new Set(['pit.v1', 'pit.session', 'pit.wasSignedIn', 'pit.mockdrive', 'pit.cowork', 'pit.coachreply',
   ...Object.keys(localStorage).filter(k => k.startsWith('pit.'))])];
@@ -101,7 +104,18 @@ async function boot() {
   if (first.dataset.act === 'setupme') { first.click(); await wait(200); }
   await waitFor('[data-act="open"]');    // modules loaded and the library drawn
 }
-const click = async (sel, ms = 160) => { const el = await waitFor(sel); el.click(); await wait(ms); };
+// Poll a condition instead of trusting a clock: anything that reloads the library is slow on a cold cache.
+const until = async (fn, ms = 5000) => { for (let i = 0; i < ms / 50; i++) { try { if (fn()) return true; } catch { /* not there yet */ } await wait(50); } return false; };
+const click = async (sel, ms = 160) => {
+  const el = await waitFor(sel);
+  el.click();
+  await wait(ms);
+  // A commit reloads the whole library before it leaves the import screen, which on a cold cache
+  // takes longer than any fixed wait; give it until the screen changes (or an error shows).
+  if (sel.includes('"commit"')) {
+    for (let i = 0; i < 100 && doc().getElementById('app')?.className.includes('import') && !doc().getElementById('err')?.textContent; i++) await wait(50);
+  }
+};
 
 try {
   // ---- 1. it starts up with the bundled modules ----
@@ -156,7 +170,8 @@ try {
   await click('[data-act="paste"]');
   check(!!$('.preview'), 'the import shows a preview before committing');
   await click('[data-act="commit"]', 400);
-  check(!!$('[data-act="open"][data-id="self-test"]'), 'the imported module reaches the library');
+  // loading the library again after a commit takes a moment on a cold cache; wait for the tile, not a clock
+  check(!!(await waitFor('[data-act="open"][data-id="self-test"]', 5000).catch(() => null)), 'the imported module reaches the library');
   check(state().custom.some(m => m.id === 'self-test' && m.cards.length === 2), 'with both of its cards');
 
   // ---- 6. search finds a card and offers to drill it ----
@@ -839,6 +854,7 @@ try {
   await wait(250);
   doc().getElementById('dlg').value = 'Mira';
   await click('.sheet-box [data-ok]', 500);
+  await until(() => state().active === 'Mira');
   check(state().active === 'Mira', 'a child gets their own learner');
   const mira = state().profiles.Mira.opts;
   check(mira.kid === true && mira.tts === true, 'with kid mode and reading aloud on',
@@ -1069,6 +1085,7 @@ try {
   doc().getElementById('paste').value = '## Bin Test\n| Q | A |\n|---|---|\n| a | 1 |\n| b | 2 |';
   await click('[data-act="paste"]', 300);
   await click('[data-act="commit"]', 500);
+  await waitFor('[data-act="open"][data-id="bin-test"]', 5000);
   await click('[data-act="import"]', 300);
   await click('[data-act="delcustom"][data-id="bin-test"]', 300);
   await click('.sheet-box [data-ok]', 500);
@@ -1529,10 +1546,10 @@ try {
   // ---- 70. mastery rolls up to the subject level ----
   await boot();
   await click('[data-act="progress"]', 350);
-  const subjectRows = $$('[data-act="subject"]').map(b => b.dataset.t);
+  const subjectRows = $$('[data-act="subject"]').map(b => b.dataset.k);
   check(subjectRows.length >= 2, 'the progress screen lists subjects', subjectRows.join(','));
   check(subjectRows.includes('kids'), 'including the biggest ones');
-  const wordsBtn = $$('[data-act="subject"]').find(b => b.dataset.t === 'words');
+  const wordsBtn = $$('[data-act="subject"]').find(b => b.dataset.k === 'words');
   wordsBtn.click();
   await wait(400);
   check(doc().getElementById('app').className.includes('home'), 'tapping one lands on the shelf');
@@ -1540,7 +1557,7 @@ try {
   check(!!$('[data-act="drilltag"]'), 'with the drill-everything button waiting');
 
   // ---- 71. an import can be taken back whole ----
-  await click('[data-act="tag"][data-t="words"]', 200);      // clear the filter
+  await click('[data-act="tag"][data-k="words"]', 200);      // clear the filter
   await click('[data-act="import"]', 250);
   doc().getElementById('paste').value = '## Oops\n| Q | A |\n|---|---|\n| bad | card |';
   await click('[data-act="paste"]', 300);
@@ -2253,8 +2270,9 @@ try {
   if (frame.contentWindow.appFont) {
     check(bodyFont().replace(/^["']/, '').startsWith('Atkinson Hyperlegible'), 'the default font is Atkinson Hyperlegible', bodyFont());
     await click('[data-act="settings"]', 250);
-    doc().getElementById('fontpick').value = 'serif';
-    doc().getElementById('fontpick').dispatchEvent(new frame.contentWindow.Event('change', { bubbles: true }));
+    const fontSel = await waitFor('app-font-picker select', 3000);
+    fontSel.value = 'serif';
+    fontSel.dispatchEvent(new frame.contentWindow.Event('change', { bubbles: true }));
     await wait(150);
     check(bodyFont().startsWith('Georgia'), 'and Settings changes it', bodyFont());
   } else {
@@ -2504,6 +2522,7 @@ try {
   bad('the run stopped early', e.message);
 } finally {
   restore();
+  if (langWas === null) localStorage.removeItem('maker-lang'); else localStorage.setItem('maker-lang', langWas);
   await mediaCleanup();
   frame.src = 'about:blank';
   const el = document.getElementById('summary');

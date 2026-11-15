@@ -2,6 +2,22 @@ import { STICKERS, auditModule, bestTime, bumpStreak, cardKey, cloze, counts, co
   letterTiles, mergeConfusions, mergeState, minutesFor, newCards, parseImport, pickSession, rankFor, reminderIcs, schedule, sharpenPrompt, shuffle, slowAfter, spellable, spreadDue, tagTotals, starred, toMarkdown, stickerEarned, troubleSpots,
   stickersFor, validateModule, weekSummary, weeklyTotals, maskHint, diffChars, quickBefore, yearSummary, listItems, ladderRung, briefPayload, reviewRequest, reviewRows, attachReviews, detachReviews } from './core.js';
 
+// Every word on screen is written in English straight into the code as t('…') or t.n(one, other, n);
+// font.js swaps in the reader's language from locales/ (machine translated, and it says so). Without
+// font.js — offline on a first visit, or under node — it stays English. Parameters are filled in
+// as given, so anything user-supplied goes in already escaped: t('Remove {name}', { name: esc(x) }).
+// Never name a local variable `t` in this file: it would hide this one.
+const fill = (s, p) => p ? String(s).replace(/\{(\w+)\}/g, (m, k) => (k in p ? String(p[k]) : m)) : String(s);
+const t = window.t || Object.assign((k, p) => fill(k, p),
+  { n: (one, other, n, p) => fill(n === 1 ? one : other, { n, ...p }) });
+// A moment as the reader writes it — their language, their clock (font.js's shared settings).
+const stamp = ms => window.appFont?.fmt?.dateTime ? window.appFont.fmt.dateTime(ms)
+  : new Date(ms).toLocaleString(window.appFont?.locale?.() || undefined);
+// A stored day ('YYYY-MM-DD', the learner's local day) as the reader writes dates.
+const dayLabel = d => window.appFont?.fmt?.date ? window.appFont.fmt.date(d + 'T00:00:00') : d;
+// The dictionary arrives after the first screen is drawn; draw it again in the reader's language.
+document.addEventListener('app-language-ready', () => { try { render(); } catch { /* not booted yet */ } });
+
 const KEY = 'pit.v1';
 const app = document.getElementById('app');
 const live = document.getElementById('live');
@@ -513,24 +529,25 @@ function renderBar() {
   const p = P();
   applyAccent();
   const sync = !clientId() ? ''
-    : syncError ? `<button class="chip warnchip" data-act="sync" title="${esc(syncError)} — tap to retry">⚠ sync</button>`
-    : signedIn() ? `<button class="chip" data-act="sync" title="Sync now${account ? ' — ' + esc(account.name || account.email) : ''}">${accountPic() || '☁'} synced</button>`
-    : `<button class="chip" data-act="signin">☁ sign in</button>`;
+    : syncError ? `<button class="chip warnchip" data-act="sync" title="${esc(t('{error} — tap to retry', { error: syncError }))}">⚠ ${t('sync')}</button>`
+    : signedIn() ? `<button class="chip" data-act="sync" title="${esc(t('Sync now'))}${account ? ' — ' + esc(account.name || account.email) : ''}">${accountPic() || '☁'} ${t('synced')}</button>`
+    : `<button class="chip" data-act="signin">☁ ${t('sign in')}</button>`;
   bar.innerHTML = `
-    <button class="chip" data-act="home" aria-label="Home">◎ <b>Learning Pit</b></button>
+    <button class="chip" data-act="home" aria-label="${esc(t('Home'))}">◎ <b>Learning Pit</b></button>
     <span class="spacer"></span>
-    <button class="chip flame" data-act="progress" aria-label="${
-      opt().kid ? `${p.stats.stars || 0} stars` : `${p.stats.streak || 0} day streak`} — see progress">${
+    <button class="chip flame" data-act="progress" aria-label="${esc(
+      opt().kid ? t.n('{n} star — see progress', '{n} stars — see progress', p.stats.stars || 0)
+        : t.n('{n} day streak — see progress', '{n} day streak — see progress', p.stats.streak || 0))}">${
       opt().kid ? `${p.stats.stars || 0}★` : `${p.stats.streak || 0}🔥`}</button>
     ${sync}
-    <button class="chip" data-act="settings" aria-label="Settings for ${esc(state.active)}">
+    <button class="chip" data-act="settings" aria-label="${esc(t('Settings for {name}', { name: state.active }))}">
       <span aria-hidden="true">${opt().avatar}</span> ${esc(state.active)}</button>`;
 }
 
 // A thrown render would otherwise leave a blank screen and no explanation.
 addEventListener('error', e => {
   console.error(e.error || e.message);
-  if (!document.querySelector('.toast')) toast('Something went wrong on that screen.', 'Reload', () => location.reload());
+  if (!document.querySelector('.toast')) toast(t('Something went wrong on that screen.'), t('Reload'), () => location.reload());
 });
 addEventListener('unhandledrejection', e => console.warn('unhandled:', e.reason?.message || e.reason));
 
@@ -683,30 +700,28 @@ function home() {
   const doneToday = (P().stats.days || {})[today()] || 0;
   const goal = opt().goal || 0;
   app.innerHTML = `
-    <h1>Choose a discipline</h1>
-    <p class="lede">${!modules.length ? 'No modules yet — import one to begin.'
-      : goal ? `${doneToday} of ${goal} today${doneToday >= goal ? ' — done. ' + (opt().kid ? '⭐' : 'The pit rests.') : ''}`
-      : 'The pit is ready.'}${
+    <h1>${t('Choose a discipline')}</h1>
+    <p class="lede">${!modules.length ? t('No modules yet — import one to begin.')
+      : goal ? `${t('{done} of {goal} today', { done: doneToday, goal })}${doneToday >= goal ? ' — ' + (opt().kid ? t('done.') + ' ⭐' : t('done. The pit rests.')) : ''}`
+      : t('The pit is ready.')}${
       // A streak is only worth having if you are told when it is about to go.
       !doneToday && (P().stats.streak || 0) > 1
-        ? ` <b class="atrisk">${P().stats.streak} day streak — nothing done yet today.</b>` : ''}</p>
+        ? ` <b class="atrisk">${t.n('{n} day streak — nothing done yet today.', '{n} day streak — nothing done yet today.', P().stats.streak)}</b>` : ''}</p>
     ${goal ? `<div class="goal"><i style="width:${Math.min(100, Math.round((doneToday / goal) * 100))}%"></i></div>` : ''}
     ${(P().stats.reviews || 0) ? rankLine() : ''}
     ${(P().stats.reviews || 0) === 0 ? `<div class="welcome">
-      <p>${opt().kid ? 'Pick something below. The pit will remember what you find hard and ask it again.'
-        : `Pick a discipline below and the pit will start scheduling it for you — each card comes
-           back just before you'd forget it.`}</p>
-      ${opt().kid ? '' : `<p>To drill your own material,
-        <button class="linky" data-act="import">import a module</button>:
-        paste an answer from Claude, a table, or a list, and it becomes cards.
-        Studying with a child? Add them in ⚙ Settings and turn on <b>kid mode</b>.</p>`}
+      <p>${opt().kid ? t('Pick something below. The pit will remember what you find hard and ask it again.')
+        : t("Pick a discipline below and the pit will start scheduling it for you — each card comes back just before you'd forget it.")}</p>
+      ${opt().kid ? '' : `<p>${t('To drill your own material, {import}: paste an answer from Claude, a table, or a list, and it becomes cards.',
+        { import: `<button class="linky" data-act="import">${t('import a module')}</button>` })}
+        ${t('Studying with a child? Add them in ⚙ Settings and turn on {kid}.', { kid: `<b>${t('kid mode')}</b>` })}</p>`}
     </div>` : ''}
     ${opt().kid && visible().length ? `<button class="btn wide kidplay" data-act="kidplay">
-      ▶ Play</button>` : ''}
+      ▶ ${t('Play')}</button>` : ''}
     ${(() => {
       const r = readSession();
       if (r) return `<button class="btn wide due-all" data-act="resume">
-        Finish ${esc(r.module.title)} <small>${r.queue.length} cards left</small></button>`;
+        ${t('Finish {module}', { module: esc(r.module.title) })} <small>${t.n('{n} card left', '{n} cards left', r.queue.length)}</small></button>`;
       // A deadline outranks the ordinary due pile: it is the thing with a date on it.
       const urgent = visible()
         .map(m => ({ m, plan: planFor(m) }))
@@ -714,39 +729,39 @@ function home() {
         .sort((a, b) => a.plan.daysLeft - b.plan.daysLeft)[0];
       if (urgent) return `<button class="btn wide due-all urgent" data-act="play"
         data-id="${esc(urgent.m.id)}" data-game="recall">
-        ${esc(urgent.m.title)} by ${esc(deadlines()[urgent.m.id])}
-        <small>${urgent.plan.perDay} a day · ${urgent.plan.daysLeft} day${urgent.plan.daysLeft === 1 ? '' : 's'} left</small></button>`;
+        ${t('{module} by {date}', { module: esc(urgent.m.title), date: esc(dayLabel(deadlines()[urgent.m.id])) })}
+        <small>${t('{n} a day', { n: urgent.plan.perDay })} · ${t.n('{n} day left', '{n} days left', urgent.plan.daysLeft)}</small></button>`;
       if (due.length) {
         // A big pile is only frightening until you know it is a few minutes of it.
         const now = Math.min(due.length, opt().size);
         const mins = minutesFor(now, P().stats.sessions);
         const across = new Set(due.map(c => c.mid)).size;
         return `<button class="btn wide due-all" data-act="reviewall">
-          Review ${due.length} due <small>${now < due.length ? `${now} now, ` : ''}about ${mins} min ·
-          ${across} module${across === 1 ? '' : 's'}</small></button>
+          ${t('Review {n} due', { n: due.length })} <small>${now < due.length ? t('{n} now,', { n: now }) + ' ' : ''}${t('about {n} min', { n: mins })} ·
+          ${t.n('{n} module', '{n} modules', across)}</small></button>
           ${due.length > Math.max(20, opt().goal * 2) ? `<button class="ghost sm spread"
-            data-act="spreadpile">That is a lot. Spread it over the week?</button>` : ''}`;
+            data-act="spreadpile">${t('That is a lot. Spread it over the week?')}</button>` : ''}`;
       }
       return modules.length ? `<button class="btn wide due-all" data-act="learnnew">
-        Learn something new <small>nothing is due yet</small></button>` : '';
+        ${t('Learn something new')} <small>${t('nothing is due yet')}</small></button>` : '';
     })()}
-    ${installPrompt && !opt().kid ? `<button class="linky addcard" data-act="install">⤓ install on this device</button>` : ''}
+    ${installPrompt && !opt().kid ? `<button class="linky addcard" data-act="install">⤓ ${t('install on this device')}</button>` : ''}
     ${(() => {
       const n = starred(visible(), P().srs).length;
-      return n ? `<button class="linky addcard" data-act="drillstarred">★ starred (${n})</button>` : '';
+      return n ? `<button class="linky addcard" data-act="drillstarred">★ ${t('starred ({n})', { n })}</button>` : '';
     })()}
-    ${!opt().kid && modules.length ? `<button class="linky addcard" data-act="quickcard">＋ quick card</button>` : ''}
-    ${!opt().kid && modules.length > 1 ? `<button class="linky addcard" data-act="mockexam">◷ mock exam</button>` : ''}
-    ${modules.length > 1 ? `<input id="q" type="search" aria-label="Search cards and modules"
-      placeholder="Search cards and modules" value="${esc(q)}">` : ''}
+    ${!opt().kid && modules.length ? `<button class="linky addcard" data-act="quickcard">＋ ${t('quick card')}</button>` : ''}
+    ${!opt().kid && modules.length > 1 ? `<button class="linky addcard" data-act="mockexam">◷ ${t('mock exam')}</button>` : ''}
+    ${modules.length > 1 ? `<input id="q" type="search" aria-label="${esc(t('Search cards and modules'))}"
+      placeholder="${esc(t('Search cards and modules'))}" value="${esc(q)}">` : ''}
     ${tags.length > 1 || modules.length > 4 ? `<div class="row wrap tagrow">
-      ${tags.map(t => `<button class="chip ${t === tag ? 'on' : ''}" data-act="tag" data-t="${esc(t)}">${esc(t)}</button>`).join('')}
+      ${tags.map(t => `<button class="chip ${t === tag ? 'on' : ''}" data-act="tag" data-k="${esc(t)}">${esc(t)}</button>`).join('')}
       ${modules.length > 4 ? `<button class="chip ${opt().sort === 'due' ? 'on' : ''}" data-act="sort">
-        ${opt().sort === 'due' ? '⇅ most to do' : '⇅ A–Z'}</button>` : ''}
+        ⇅ ${opt().sort === 'due' ? t('most to do') : t('A–Z')}</button>` : ''}
     </div>` : ''}
     ${emptyLibraryNote()}
     <div id="results">${libraryHtml(q, tag)}</div>
-    ${loadErrors.length ? `<p class="warn">${loadErrors.length} module${loadErrors.length > 1 ? 's' : ''} could not be loaded:
+    ${loadErrors.length ? `<p class="warn">${t.n('{n} module could not be loaded:', '{n} modules could not be loaded:', loadErrors.length)}
       ${esc(loadErrors.slice(0, 3).join('; '))}</p>` : ''}`;
   const input = document.getElementById('q');
   if (input) {
@@ -766,20 +781,19 @@ function home() {
 // not have to find kid mode in a settings screen, and should not have to read anything.
 function setupView() {
   app.innerHTML = `
-    <h1>Who is the pit for?</h1>
-    <p class="lede">You can add more learners later, and each one keeps their own progress,
-    settings and schedule.</p>
+    <h1>${t('Who is the pit for?')}</h1>
+    <p class="lede">${t('You can add more learners later, and each one keeps their own progress, settings and schedule.')}</p>
     <div class="games">
       <button class="game" data-act="setupme">
         <span class="glyph">◎</span>
-        <span><b>Me</b><small>Full set of exercises, numbers and percentages</small></span>
+        <span><b>${t('Me')}</b><small>${t('Full set of exercises, numbers and percentages')}</small></span>
       </button>
       <button class="game" data-act="setupkid">
         <span class="glyph">🧸</span>
-        <span><b>A child</b><small>Two big buttons, stars, everything read aloud</small></span>
+        <span><b>${t('A child')}</b><small>${t('Two big buttons, stars, everything read aloud')}</small></span>
       </button>
     </div>
-    <button class="linky" data-act="setupskip">skip — I will sort it out later</button>`;
+    <button class="linky" data-act="setupskip">${t('skip — I will sort it out later')}</button>`;
 }
 
 // One fact, one screen, no editor. This is where something learned five minutes ago goes
@@ -1588,7 +1602,7 @@ function subjects() {
   if (tags.length < 2) return '';
   return `<h2>By subject</h2>
     ${tags.map(t => `<div class="bar-row">
-      <button class="rowbtn" data-act="subject" data-t="${esc(t.tag)}">
+      <button class="rowbtn" data-act="subject" data-k="${esc(t.tag)}">
         <span>${esc(t.tag)}<small>${t.learned}/${t.total}${t.due ? ` · ${t.due} due` : ''}</small></span></button>
       <div class="bar ${t.due ? 'weak' : ''}"><i style="width:${Math.round((t.learned / t.total) * 100)}%"></i></div>
     </div>`).join('')}`;
@@ -1986,93 +2000,89 @@ function overlapNote() {
 function settings() {
   const names = Object.keys(state.profiles);
   app.innerHTML = `
-    <button class="back" data-act="back">‹ back</button>
-    <h1>Settings</h1>
-    <h2>Who is learning</h2>
+    <button class="back" data-act="back">‹ ${t('back')}</button>
+    <h1>${t('Settings')}</h1>
+    <h2>${t('Who is learning')}</h2>
     <div class="row wrap">
       ${names.map(n => `<button class="chip big ${n === state.active ? 'on' : ''}" data-act="profile" data-name="${esc(n)}">${
         (state.profiles[n].opts || {}).avatar || '◎'} ${esc(n)}</button>`).join('')}
-      <button class="chip big" data-act="addprofile">＋ add</button>
+      <button class="chip big" data-act="addprofile">＋ ${t('add')}</button>
     </div>
-    <h2>${esc(state.active)}'s settings</h2>
+    <h2>${t('Settings for {name}', { name: esc(state.active) })}</h2>
     <div class="row wrap avatars">
       ${AVATARS.map(a => `<button class="chip ${opt().avatar === a ? 'on' : ''}" data-act="avatar" data-a="${a}"
-        aria-label="Choose ${a}">${a}</button>`).join('')}
-      <button class="chip" data-act="rename">✎ rename</button>
+        aria-label="${esc(t('Choose {avatar}', { avatar: a }))}">${a}</button>`).join('')}
+      <button class="chip" data-act="rename">✎ ${t('rename')}</button>
     </div>
     <div class="row wrap avatars">
       ${Object.entries(ACCENTS).map(([name, set]) => `<button class="chip swatch ${opt().accent === name ? 'on' : ''}"
-        data-act="accent" data-c="${name}" aria-label="${name} light"
+        data-act="accent" data-c="${name}" aria-label="${esc(t('Accent colour: {name}', { name }))}"
         style="--sw:${document.documentElement.dataset.theme === 'light' ? set.light[0] : set.dark[0]}"><span></span></button>`).join('')}
     </div>
-    <label class="row"><input type="checkbox" data-opt="kid" ${opt().kid ? 'checked' : ''}> Kid mode <small class="dim">— two big buttons, stars instead of numbers</small></label>
-    <label class="row"><input type="checkbox" data-opt="tts" ${opt().tts ? 'checked' : ''}> Read cards aloud</label>
-    ${voices().length ? `<label class="row">Voice
+    <label class="row"><input type="checkbox" data-opt="kid" ${opt().kid ? 'checked' : ''}> ${t('Kid mode')} <small class="dim">— ${t('two big buttons, stars instead of numbers')}</small></label>
+    <label class="row"><input type="checkbox" data-opt="tts" ${opt().tts ? 'checked' : ''}> ${t('Read cards aloud')}</label>
+    ${voices().length ? `<label class="row">${t('Voice')}
       <select data-opt="voice">
-        <option value="">Default</option>
+        <option value="">${t('Default')}</option>
         ${voices().filter(v => v.lang.startsWith((navigator.language || 'en').slice(0, 2)))
           .map(v => `<option ${opt().voice === v.name ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}
       </select>
-      <button class="ghost sm" data-act="tryvoice">Try it</button>
+      <button class="ghost sm" data-act="tryvoice">${t('Try it')}</button>
     </label>` : ''}
-    <label class="row"><input type="checkbox" data-opt="sound" ${opt().sound ? 'checked' : ''}> Sound effects</label>
-    <label class="row">Look
-      <select data-opt="theme">${[['auto', 'Follow the device'], ['dark', 'Always dark'], ['light', 'Always light'], ['contrast', 'High contrast']]
+    <label class="row"><input type="checkbox" data-opt="sound" ${opt().sound ? 'checked' : ''}> ${t('Sound effects')}</label>
+    <label class="row">${t('Look')}
+      <select data-opt="theme">${[['auto', t('Follow the device')], ['dark', t('Always dark')], ['light', t('Always light')], ['contrast', t('High contrast')]]
         .map(([v, l]) => `<option value="${v}" ${opt().theme === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
     </label>
-    <label class="row">Reading speed
-      <select data-opt="rate">${[[0, 'Normal'], [0.7, 'Slow'], [1.15, 'Quick']]
+    <label class="row">${t('Reading speed')}
+      <select data-opt="rate">${[[0, t('Normal')], [0.7, t('Slow')], [1.15, t('Quick')]]
         .map(([v, l]) => `<option value="${v}" ${(opt().rate || 0) === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
     </label>
-    ${window.appFont ? `<label class="row">Font
-      <select id="fontpick">${window.appFont.options
-        .map(o => `<option value="${esc(o.id)}" ${window.appFont.get() === o.id ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select>
-    </label>
-    <p class="lede"><app-build-info></app-build-info></p>` : ''}
-    <label class="row">Text size
-      <select data-opt="text">${[[90, 'Small'], [100, 'Normal'], [115, 'Large'], [135, 'Very large']]
+    <div class="row housepick"><app-font-picker></app-font-picker></div>
+    <label class="row">${t('Text size')}
+      <select data-opt="text">${[[90, t('Small')], [100, t('Normal')], [115, t('Large')], [135, t('Very large')]]
         .map(([v, l]) => `<option value="${v}" ${opt().text === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
     </label>
-    <label class="row">Cards per session
+    <label class="row">${t('Cards per session')}
       <select data-opt="size">${[6, 12, 20, 40].map(n => `<option ${opt().size === n ? 'selected' : ''}>${n}</option>`).join('')}</select>
     </label>
-    <label class="row">Daily goal
-      <select data-opt="goal">${[0, 10, 20, 40, 80].map(n => `<option value="${n}" ${opt().goal === n ? 'selected' : ''}>${n || 'off'}</option>`).join('')}</select>
+    <label class="row">${t('Daily goal')}
+      <select data-opt="goal">${[0, 10, 20, 40, 80].map(n => `<option value="${n}" ${opt().goal === n ? 'selected' : ''}>${n || t('off')}</option>`).join('')}</select>
     </label>
-    ${modules.length > 1 ? `<h2>Modules ${esc(state.active)} can see</h2>
+    ${modules.length > 1 ? `<h2>${t('Modules {name} can see', { name: esc(state.active) })}</h2>
       <div class="list">${modules.map(m => `<label class="li">
-        <span><span aria-hidden="true">${esc(m.icon || '◈')}</span> ${esc(m.title)} <small>${m.cards.length} cards</small></span>
+        <span><span aria-hidden="true">${esc(m.icon || '◈')}</span> ${esc(m.title)} <small>${t.n('{n} card', '{n} cards', m.cards.length)}</small></span>
         <input type="checkbox" data-show="${esc(m.id)}" ${opt().hidden.includes(m.id) ? '' : 'checked'}>
       </label>`).join('')}</div>` : ''}
     ${overlapNote()}
-    ${names.length > 1 ? `<button class="ghost sm" data-act="delprofile">Remove ${esc(state.active)}</button>` : ''}
-    <h2>Sync (Google Drive)</h2>
-    <p class="lede">Progress and imported modules live in this app's private Drive folder.
+    ${names.length > 1 ? `<button class="ghost sm" data-act="delprofile">${t('Remove {name}', { name: esc(state.active) })}</button>` : ''}
+    <h2>${t('Sync (Google Drive)')}</h2>
+    <p class="lede">${t("Progress and imported modules live in this app's private Drive folder.")}
       ${deployClientId && !state.settings.clientId
-        ? 'This deployment already carries a client ID — just connect.'
-        : 'Paste an OAuth client ID — see README.md.'}</p>
-    <input id="cid" aria-label="Google OAuth client ID" placeholder="xxxxx.apps.googleusercontent.com"
+        ? t('This deployment already carries a client ID — just connect.')
+        : t('Paste an OAuth client ID — see README.md.')}</p>
+    <input id="cid" aria-label="${esc(t('Google OAuth client ID'))}" placeholder="xxxxx.apps.googleusercontent.com"
       value="${esc(state.settings.clientId || '')}" spellcheck="false">
     ${signedIn() && account ? `<p class="acct">${accountPic()}<span>${esc(account.name || account.email)}</span>
       ${account.name && account.email ? `<em>${esc(account.email)}</em>` : ''}</p>` : ''}
     <div class="row wrap">
-      <button class="btn" data-act="signin">${signedIn() ? 'Sync now' : 'Connect Google'}</button>
-      ${signedIn() ? '<button class="btn ghost" data-act="signout">Sign out</button>' : ''}
-      <button class="btn ghost" data-act="export">Export backup</button>
-      <button class="btn ghost" data-act="exportmd">Export as markdown</button>
-      <button class="btn ghost" data-act="exporthistory">Export history CSV</button>
-      <button class="btn ghost" data-act="remindme">Daily reminder</button>
-      <label class="btn ghost">Restore backup<input class="sr" type="file" accept=".json,application/json" id="restore"></label>
-      <button class="btn ghost" data-act="install">Install app</button>
+      <button class="btn" data-act="signin">${signedIn() ? t('Sync now') : t('Connect Google')}</button>
+      ${signedIn() ? `<button class="btn ghost" data-act="signout">${t('Sign out')}</button>` : ''}
+      <button class="btn ghost" data-act="export">${t('Export backup')}</button>
+      <button class="btn ghost" data-act="exportmd">${t('Export as markdown')}</button>
+      <button class="btn ghost" data-act="exporthistory">${t('Export history CSV')}</button>
+      <button class="btn ghost" data-act="remindme">${t('Daily reminder')}</button>
+      <label class="btn ghost">${t('Restore backup')}<input class="sr" type="file" accept=".json,application/json" id="restore"></label>
+      <button class="btn ghost" data-act="install">${t('Install app')}</button>
     </div>
-    <p class="lede">${state.settings.lastSync ? 'Last sync ' + new Date(state.settings.lastSync).toLocaleString() : 'Never synced.'}</p>
-    <h2>This device</h2>
+    <p class="lede">${state.settings.lastSync ? t('Last sync {when}', { when: stamp(state.settings.lastSync) }) : t('Never synced.')}</p>
+    <h2>${t('This device')}</h2>
     <p class="lede" id="usage">…</p>
     <div id="heavy"></div>
-    ${opt().kid ? '' : '<button class="ghost sm" data-act="wipe">Erase everything on this device</button>'}
+    ${opt().kid ? '' : `<button class="ghost sm" data-act="wipe">${t('Erase everything on this device')}</button>`}
     <p id="err" class="err"></p>
-    <h2>Elsewhere</h2>
-    <p class="lede">More apps by the same maker, all free and local-first —
+    <h2>${t('Elsewhere')}</h2>
+    <p class="lede">${t('More apps by the same maker, all free and local-first —')}
       <a class="linky" href="https://adervec.github.io/portal/" target="_blank"
         rel="noopener">adervec.github.io</a></p>`;
   for (const el of app.querySelectorAll('[data-opt]')) {
@@ -2084,9 +2094,6 @@ function settings() {
       render();
     });
   }
-  // The font is the device's, shared with the maker's other apps on this origin — not a
-  // learner's setting, so it lives in font.js's own key rather than in opts.
-  document.getElementById('fontpick')?.addEventListener('change', e => window.appFont.set(e.target.value));
   usageLine();
   for (const el of app.querySelectorAll('[data-show]')) {
     el.addEventListener('change', e => {
@@ -4015,7 +4022,7 @@ ${toMarkdown(visible())}`;
     download(m.id + '.tsv', rows.join('\n'), 'text/tab-separated-values');
   },
 
-  tag: el => { view.tag = view.tag === el.dataset.t ? '' : el.dataset.t; render(); },
+  tag: el => { view.tag = view.tag === el.dataset.k ? '' : el.dataset.k; render(); },
   sort: () => { setOpt({ sort: opt().sort === 'due' ? '' : 'due' }); render(); },
   rev: () => { view.rev = !view.rev; render(); },
   setdeadline: async el => {
@@ -4032,7 +4039,7 @@ ${toMarkdown(visible())}`;
     if (!matches.length) return;
     launch({ id: 'search', title: 'Search results', cards: matches }, 'recall', matches.slice(0, 20), null, false, ACT.drill);
   },
-  subject: el => { hushSpeech(); session = null; view = { name: 'home', tag: el.dataset.t }; render(); },
+  subject: el => { hushSpeech(); session = null; view = { name: 'home', tag: el.dataset.k }; render(); },
   drillconfusion: el => {
     const wanted = new Set([el.dataset.a, el.dataset.b]);
     const cards = [];
