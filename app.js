@@ -439,7 +439,7 @@ function dialog({ title, value, ok = 'OK', danger = false, choices = null }) {
           : `<input id="dlg" value="${esc(value)}" enterkeyhint="done" aria-label="${esc(title)}">`}
       <div class="row">
         ${choices ? '' : `<button class="btn ${danger ? 'again' : ''}" data-ok>${esc(ok)}</button>`}
-        <button class="btn ghost" data-cancel>Cancel</button>
+        <button class="btn ghost" data-cancel>${t('Cancel')}</button>
       </div>
     </div>`;
     document.body.append(el);
@@ -837,7 +837,7 @@ function quickView() {
       <label class="field">Answer
         <textarea id="qback" rows="2" placeholder="The thing you want to come back to you"></textarea>
       </label>
-      <label class="field">${t('Why')} <small class="dim">— optional, shown after you answer</small>
+      <label class="field">${t('Why')} <small class="dim">— ${t('optional, shown after you answer')}</small>
         <textarea id="qnote" rows="2"></textarea>
       </label>
       <div class="row picrow">
@@ -1137,7 +1137,7 @@ function results() {
         ? `<button class="btn ghost" data-act="anotherway">${t('Another way')}</button>` : ''}
       <button class="btn ghost" data-act="home">${t('Done')}</button>
     </div>`;
-  say(`Session complete. ${right} of ${total} correct.`);
+  say(t('Session complete. {right} of {total} correct.', { right, total }));
 }
 
 const PROMPT = `Turn everything we just covered into a Learning Pit module. Reply with ONLY a JSON code block:
@@ -1412,7 +1412,7 @@ function auditBanner(m) {
         <span>${esc(m.cards[i].front)}</span>
         <em>${its.map(x => esc(`${x.kind} — ${x.why}`)).join(' · ')}</em></button>
     </div>`).join('')}</div>
-    ${byCard.size > rows.length ? `<small class="dim">…and ${byCard.size - rows.length} more</small>` : ''}
+    ${byCard.size > rows.length ? `<small class="dim">${t('…and {n} more', { n: byCard.size - rows.length })}</small>` : ''}
   </div>`;
 }
 
@@ -1429,7 +1429,7 @@ function editView(id) {
     </div>
     <label class="stack">${t('Description')}<input data-field="description" value="${esc(m.description || '')}"></label>
     <div class="row">
-      <label class="stack grow">${t('Tags')} <small class="dim">(comma separated — they drive the filters)</small>
+      <label class="stack grow">${t('Tags')} <small class="dim">(${t('comma separated — they drive the filters')})</small>
         <input data-field="tags" value="${esc((m.tags || []).join(', '))}"></label>
       <label class="stack icon-field">${t('Spoken as')} <small class="dim">(fr, de…)</small>
         <input data-field="lang" value="${esc(m.lang || '')}" maxlength="12" placeholder="—"></label>
@@ -1452,19 +1452,19 @@ function editView(id) {
       return `<div class="li editing">
         <label class="stack">${t('Front')}<textarea data-card="front" rows="2">${esc(c.front)}</textarea></label>
         <label class="stack">${t('Back')}<textarea data-card="back" rows="2">${esc(c.back)}</textarea></label>
-        <label class="stack">${t('Hint')} <small class="dim">(shown before the answer)</small><input data-card="hint" value="${esc(c.hint || '')}"></label>
-        <label class="stack">${t('Note')} <small class="dim">(the why, shown after)</small><textarea data-card="note" rows="2">${esc(c.note || '')}</textarea></label>
-        <label class="stack">${t('Source')} <small class="dim">(a link back to where this came from)</small><input data-card="source" value="${esc(c.source || '')}"></label>
-        <label class="stack">${t('Also accept')} <small class="dim">(one per line — other wordings that count as right)</small><textarea data-card="alt" rows="2">${esc((c.alt || []).join('\n'))}</textarea></label>
-        <label class="stack">${t('Wrong answers')} <small class="dim">(one per line, for multiple choice)</small><textarea data-card="options" rows="2">${esc((c.options || []).join('\n'))}</textarea></label>
-        <div class="stack">${t('Sound')} <small class="dim">(a recording of the answer)</small>
+        <label class="stack">${t('Hint')} <small class="dim">(${t('shown before the answer')})</small><input data-card="hint" value="${esc(c.hint || '')}"></label>
+        <label class="stack">${t('Note')} <small class="dim">(${t('the why, shown after')})</small><textarea data-card="note" rows="2">${esc(c.note || '')}</textarea></label>
+        <label class="stack">${t('Source')} <small class="dim">(${t('a link back to where this came from')})</small><input data-card="source" value="${esc(c.source || '')}"></label>
+        <label class="stack">${t('Also accept')} <small class="dim">(${t('one per line — other wordings that count as right')})</small><textarea data-card="alt" rows="2">${esc((c.alt || []).join('\n'))}</textarea></label>
+        <label class="stack">${t('Wrong answers')} <small class="dim">(${t('one per line, for multiple choice')})</small><textarea data-card="options" rows="2">${esc((c.options || []).join('\n'))}</textarea></label>
+        <div class="stack">${t('Sound')} <small class="dim">(${t('a recording of the answer')})</small>
           <div class="row wrap picrow">
-            ${c.audio ? '<button class="ghost sm" data-act="playcard">▶ play</button>' : ''}
+            ${c.audio ? `<button class="ghost sm" data-act="playcard">▶ ${t('play')}</button>` : ''}
             <button class="ghost sm ${recorder ? 'recording' : ''}" data-act="rec">${recorder ? '■ stop' : '● record'}</button>
             ${c.audio ? `<button class="ghost sm" data-act="delaudio">${t('Remove')}</button>` : ''}
           </div>
         </div>
-        <div class="stack">${t('Picture')} <small class="dim">(shown with the question)</small>
+        <div class="stack">${t('Picture')} <small class="dim">(${t('shown with the question')})</small>
           <div class="row wrap picrow">
             ${c.image ? `<img class="thumb" src="${esc(c.image)}" alt="">` : ''}
             <label class="btn ghost">${c.image ? 'Replace' : 'Add a picture'}
@@ -1536,7 +1536,7 @@ function editView(id) {
       const data = await shrinkImage(file);
       const target = editable(view.id);
       target.cards[view.editing].image = data;
-      say(`Picture added (${Math.round(data.length / 1024)} KB).`);
+      say(t('Picture added ({kb} KB).', { kb: Math.round(data.length / 1024) }));
       touch(target);
     } catch (err) { showErr(err); }
   });
@@ -2005,7 +2005,7 @@ function mountCoach(host = document.getElementById('coachhost'), out = document.
 function overlapNote() {
   const dupes = duplicatesAcross(visible());
   if (!dupes.length) return '';
-  return `<h2>The same question, twice</h2>
+  return `<h2>${t('The same question, twice')}</h2>
     <p class="lede">${dupes.length} question${dupes.length === 1 ? '' : 's'} appear in more than one
     module, so each copy is scheduled separately. Merge the modules, or delete one copy.</p>
     <div class="list">${dupes.slice(0, 6).map(where => `<div class="li">
@@ -2126,7 +2126,7 @@ function settings() {
       save();
       await loadModules();
       render();
-      toast(`Restored — ${Object.keys(state.profiles).length} learners, ${(state.custom || []).length} imported modules.`);
+      toast(t('Restored — {learners} learners, {modules} imported modules.', { learners: Object.keys(state.profiles).length, modules: (state.custom || []).length }));
     } catch (err) { showErr(err); }
   });
 }
@@ -2164,7 +2164,7 @@ function download(name, text, type) {
   a.download = name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-  say('Saved ' + name);
+  say(t('Saved {name}', { name }));
 }
 
 function showErr(e) {
@@ -2322,7 +2322,7 @@ function grade(card, g) {
   const wasParked = p.srs[k]?.susp;
   p.srs[k] = schedule(p.srs[k], g);
   if (p.srs[k].susp && !wasParked) {
-    toast(`Parked “${card.front.slice(0, 40)}” — missed ${p.srs[k].lapses} times. Rewrite it in the editor.`,
+    toast(t('Parked “{card}” — missed {n} times. Rewrite it in the editor.', { card: card.front.slice(0, 40), n: p.srs[k].lapses }),
       'Edit', () => go({ name: 'edit', id: card.mid || session.module.id }));
   }
   p.stats.reviews++;
@@ -2340,7 +2340,7 @@ function grade(card, g) {
   Object.assign(p.stats, bumpStreak(p.stats));
   p.stats.bestStreak = Math.max(p.stats.bestStreak || 0, p.stats.streak || 0);
   if (p.stats.rested === today() && restedBefore !== p.stats.rested) {
-    toast(`Rest day taken — the ${p.stats.streak} day streak holds.`);
+    toast(t('Rest day taken — the {n} day streak holds.', { n: p.stats.streak }));
   }
   blip(g === 'again' ? 'bad' : 'good');
   save();
@@ -2434,14 +2434,14 @@ function progress() {
   return `<div class="prog"><i style="width:${Math.round((session.done / total) * 100)}%"></i></div>
     <div class="pcount">${session.done} of ${total}</div>
     <div class="tools">
-      ${session.undo && session.key !== 'duel' ? '<button class="undo" data-act="undo">↶ undo last answer</button>' : ''}
-      ${onCard ? '<button class="undo" data-act="fixcard">✎ fix this card</button>' : ''}
+      ${session.undo && session.key !== 'duel' ? `<button class="undo" data-act="undo">↶ ${t('undo last answer')}</button>` : ''}
+      ${onCard ? `<button class="undo" data-act="fixcard">✎ ${t('fix this card')}</button>` : ''}
       ${onCard ? `<button class="undo" data-act="starcard">${
         P().srs[cardKey(session.module.id, session.queue[0])]?.star ? '★ starred' : '☆ star it'}</button>` : ''}
-      ${onCard ? '<button class="undo" data-act="parkcard">⏻ park it</button>' : ''}
-      ${onCard ? '<button class="undo" data-act="snooze">⏾ not today</button>' : ''}
+      ${onCard ? `<button class="undo" data-act="parkcard">⏻ ${t('park it')}</button>` : ''}
+      ${onCard ? `<button class="undo" data-act="snooze">⏾ ${t('not today')}</button>` : ''}
       ${onCard && (session.right + session.wrong) > 0
-        ? '<button class="undo" data-act="endsitting">✔ end here</button>' : ''}
+        ? `<button class="undo" data-act="endsitting">✔ ${t('end here')}</button>` : ''}
     </div>`;
 }
 
@@ -3236,7 +3236,7 @@ const from = c => c.from ? `<small class="from">${esc(c.from)}</small>` : '';
 // The note explains the answer; the source says where the answer came from. Both belong
 // with the revealed side, never with the question.
 const note = c => (c.note ? `<p class="note">${fmt(c.note)}</p>` : '')
-  + (c.source ? `<a class="source" href="${esc(c.source)}" target="_blank" rel="noopener noreferrer">source ↗</a>` : '');
+  + (c.source ? `<a class="source" href="${esc(c.source)}" target="_blank" rel="noopener noreferrer">${t('source')} ↗</a>` : '');
 // The picture belongs to the prompt, so it shows with the front and stays for the answer.
 // Just the host: the whole URL is unreadable on a phone, and the title attribute has it.
 const host = u => { try { return new URL(u).host; } catch { return 'the source'; } };
@@ -3253,14 +3253,14 @@ function dueIn(c, g) {
 }
 // A hint nobody wrote — the shape of the answer — offered only where the answer has one.
 const peekLine = c => (!c.hint && !session.peek && maskHint(c.back)
-  ? '<button class="linky skip" data-act="peek">need a hint?</button>' : '');
+  ? `<button class="linky skip" data-act="peek">${t('need a hint?')}</button>` : '');
 // A miss shown letter by letter: what was typed with the stray letters struck out, the answer
 // with the missed ones marked. Only for a real wrong answer short enough to read that way.
 function typedDiff(guess, answer, v) {
   const d = v === 'wrong' && guess.trim() && answer.length <= 60 ? diffChars(guess.trim(), answer) : null;
   if (!d) return `<p>${fmt(answer)}</p>`;
   const mark = (arr, tag) => arr.map(([ch, ok]) => (ok ? esc(ch) : `<${tag}>${esc(ch)}</${tag}>`)).join('');
-  return `<p class="typed">you typed <span>${mark(d.guess, 'del')}</span></p><p>${mark(d.answer, 'ins')}</p>`;
+  return `<p class="typed">${t('you typed')} <span>${mark(d.guess, 'del')}</span></p><p>${mark(d.answer, 'ins')}</p>`;
 }
 
 // ---------------- actions ----------------
@@ -3347,7 +3347,7 @@ const ACT = {
   delprofile: async () => {
     const n = state.active;
     if (Object.keys(state.profiles).length < 2) return;
-    if (!await askYes(`Remove ${n} and all their progress?`, 'Remove')) return;
+    if (!await askYes(t('Remove {name} and all their progress?', { name: n }), t('Remove'))) return;
     const gone = JSON.parse(JSON.stringify(state.profiles[n]));
     delete state.profiles[n];
     state.active = Object.keys(state.profiles)[0];
@@ -3362,14 +3362,14 @@ const ACT = {
   },
   reset: async el => {
     const m = modules.find(x => x.id === el.dataset.id);
-    if (!m || !await askYes(`Clear ${state.active}'s progress on ${m.title}?`, 'Clear')) return;
+    if (!m || !await askYes(t("Clear {name}'s progress on {module}?", { name: state.active, module: m.title }), t('Clear'))) return;
     for (const c of m.cards) delete P().srs[cardKey(m.id, c)];
     save();
     render();
   },
   delcustom: async el => {
     const m = state.custom.find(c => c.id === el.dataset.id);
-    if (!m || !await askYes(`Remove ${m.title} from this device?`, 'Remove')) return;
+    if (!m || !await askYes(t('Remove {module} from this device?', { module: m.title }), t('Remove'))) return;
     const gone = JSON.parse(JSON.stringify(m));
     state.custom = state.custom.filter(c => c.id !== el.dataset.id);
     save();
@@ -3457,14 +3457,14 @@ const ACT = {
     app.innerHTML = `
       <div class="cert">
         <div class="cert-icon" aria-hidden="true">${esc(m.icon || '◈')}</div>
-        <p class="cert-head">Certificate of Mastery</p>
+        <p class="cert-head">${t('Certificate of Mastery')}</p>
         <p class="cert-who">${esc(opt().avatar || '')} ${esc(state.active)}</p>
-        <p class="cert-what">has learned every one of the <b>${m.cards.length}</b> cards in</p>
+        <p class="cert-what">${t('has learned every one of the {n} cards in', { n: `<b>${m.cards.length}</b>` })}</p>
         <p class="cert-module">${esc(m.title)}</p>
         <p class="cert-meta">${new Date().toLocaleDateString()} · ${esc(r.name)} of the Learning Pit</p>
       </div>
       <div class="row">
-        <button class="btn" data-act="certprint">Print it</button>
+        <button class="btn" data-act="certprint">${t('Print it')}</button>
         <button class="btn ghost" data-act="open" data-id="${esc(m.id)}">‹ back</button>
       </div>`;
   },
@@ -3546,7 +3546,7 @@ const ACT = {
   setupme: () => { state.settings.setup = 1; save(); ACT.home(); },
   setupskip: () => { state.settings.setup = 1; save(); ACT.home(); },
   setupkid: async () => {
-    const name = ((await askText("The child's name?")) || '').slice(0, 24).trim();
+    const name = ((await askText(t("The child's name?"))) || '').slice(0, 24).trim();
     state.settings.setup = 1;
     if (!name || state.profiles[name]) { save(); return ACT.home(); }
     const taken = new Set(Object.values(state.profiles).map(p => p.opts?.avatar));
@@ -3588,7 +3588,7 @@ const ACT = {
         document.getElementById('qfront').value = '';
         document.getElementById('qback').value = '';
         document.getElementById('qnote').value = '';
-        return say(`Started ${made.title} with that card.`);
+        return say(t('Started {module} with that card.', { module: made.title }));
       }
       const m = modules.find(x => x.id === id);
       if (!m) return;
@@ -3601,7 +3601,7 @@ const ACT = {
       view.pic = null;
       view.added = [{ front, module: mine.title }, ...(view.added || [])].slice(0, 8);
       await touch(mine);                       // saves, reloads the library, redraws
-      say(`Added to ${mine.title} — ${mine.cards.length} cards.`);
+      say(t.n('Added to {module} — {n} card.', 'Added to {module} — {n} cards.', mine.cards.length, { module: mine.title }));
     } catch (e) { showErr(e); }
   },
   // Growing a module: keep every card already held, take only the questions that are new.
@@ -3630,7 +3630,7 @@ const ACT = {
       mine.cards = [...mine.cards, ...target.fresh];
       await touch(mine);
       ACT.home();
-      say(`Added ${target.fresh.length} card${target.fresh.length === 1 ? '' : 's'} to ${mine.title}.`);
+      say(t.n('Added {n} card to {module}.', 'Added {n} cards to {module}.', target.fresh.length, { module: mine.title }));
     } catch (e) { showErr(e); }
   },
   fetchurl: async () => {
@@ -3665,21 +3665,21 @@ const ACT = {
     const id = el.dataset.id;
     const m = modules.find(x => x.id === id);
     if (!m?.src) return;
-    say('Checking ' + host(m.src) + '…');
+    say(t('Checking {site}…', { site: host(m.src) }));
     try {
       const found = parseImport(await fetchText(m.src), m.title);
       // A source can hold several modules; take the one this module came from.
       const incoming = found.find(x => x.id === id) || found[0];
       if (!incoming) throw new Error('Nothing readable came back.');
       const fresh = newCards(m.cards, incoming.cards);
-      if (!fresh.length) return say('Already up to date — ' + m.cards.length + ' cards.');
+      if (!fresh.length) return say(t.n('Already up to date — {n} card.', 'Already up to date — {n} cards.', m.cards.length));
       if (!await dialog({ ok: 'Add', title: `${host(m.src)} has ${fresh.length} card${fresh.length === 1 ? '' : 's'} `
         + `you do not have yet, starting with “${fresh[0].front}”. Add them? Nothing you already study changes.` })) return;
       const mine = editable(id);              // a bundled module forks before it grows
       mine.cards = [...mine.cards, ...fresh];
       mine.src = m.src;
       await touch(mine);                      // saves, reloads the library, redraws
-      say(`Added ${fresh.length} new card${fresh.length === 1 ? '' : 's'}.`);
+      say(t.n('Added {n} new card.', 'Added {n} new cards.', fresh.length));
     } catch (e) { showErr(e); }
   },
   copyprompt: () => navigator.clipboard?.writeText(PROMPT).then(() => say(t('Prompt copied — paste it at the end of a Claude conversation.'))),
@@ -3748,7 +3748,7 @@ ${toMarkdown(visible())}`;
   },
   sync: async () => {
     try { say(t('Syncing…')); await sync(); syncError = ''; render(); say(t('Synced.')); }
-    catch (e) { syncError = e.message; renderBar(); toast('Sync failed: ' + e.message); }
+    catch (e) { syncError = e.message; renderBar(); toast(t('Sync failed: {error}', { error: e.message })); }
   },
 
   browse: el => go({ name: 'browse', id: el.dataset.id }),
@@ -3806,7 +3806,7 @@ ${toMarkdown(visible())}`;
       card.image = data;
       if (/^https:\/\//.test(f.page || '') && !card.source) card.source = f.page;
       view.found = null;
-      say(`Picture added (${Math.round(data.length / 1024)} KB).`);
+      say(t('Picture added ({kb} KB).', { kb: Math.round(data.length / 1024) }));
       touch(target);
     } catch (e) { showErr(new Error('That picture could not be fetched.')); }
   },
@@ -3815,7 +3815,7 @@ ${toMarkdown(visible())}`;
     recordClip(data => {
       const m = editable(view.id);
       m.cards[view.editing].audio = data;
-      say(`Recorded (${Math.round(data.length / 1024)} KB).`);
+      say(t('Recorded ({kb} KB).', { kb: Math.round(data.length / 1024) }));
       touch(m);
     }, err => { showErr(err); render(); });
     render();
@@ -3846,7 +3846,7 @@ ${toMarkdown(visible())}`;
   bulkdelete: async () => {
     const m = editable(view.id), sel = view.sel || [];
     if (m.cards.length - sel.length < 1) return toast(t('A module needs at least one card.'));
-    if (!await askYes(`Delete ${sel.length} card${sel.length === 1 ? '' : 's'}?`)) return;
+    if (!await askYes(t.n('Delete {n} card?', 'Delete {n} cards?', sel.length))) return;
     const doomed = new Set(sel.map(i => m.cards[i]));
     const before = m.cards.slice();
     m.cards = m.cards.filter(c => !doomed.has(c));
@@ -3894,7 +3894,7 @@ ${toMarkdown(visible())}`;
     const matching = m.cards.filter(c => q && norm(c.front + ' ' + c.back).includes(q));
     if (!matching.length) return toast(t('Filter to the cards you want to split out first.'));
     if (matching.length === m.cards.length) return toast(t('That is every card — nothing to split.'));
-    const title = await askText(`Move ${matching.length} matching cards into a new module called…`, view.cq);
+    const title = await askText(t('Move {n} matching cards into a new module called…', { n: matching.length }), view.cq);
     if (!title) return;
     const fresh = validateModule({ title, tags: m.tags, icon: m.icon, cards: matching });
     fresh.savedAt = Date.now();
@@ -3946,13 +3946,13 @@ ${toMarkdown(visible())}`;
       mine.savedAt = Date.now();
       view.editing = null;
       await touch(from);        // one save covers both — they live in the same state
-      say(`Moved to ${mine.title}, history and all.`);
+      say(t('Moved to {module}, history and all.', { module: mine.title }));
     } catch (e) { showErr(e); }
   },
   delcard: async el => {
     const m = editable(view.id), i = +el.dataset.i;
     if (m.cards.length < 2) return showErr(new Error('A module needs at least one card.'));
-    if (!await askYes(`Delete "${m.cards[i].front}"?`)) return;
+    if (!await askYes(t('Delete “{card}”?', { card: m.cards[i].front }))) return;
     const [gone] = m.cards.splice(i, 1);
     view.editing = null;
     await touch(m);
@@ -3995,7 +3995,7 @@ ${toMarkdown(visible())}`;
       try { await navigator.share({ title: 'Learning Pit', text }); return say(t('Shared.')); }
       catch { /* the sheet was dismissed — fall through to the clipboard */ }
     }
-    try { await navigator.clipboard.writeText(text); say('Copied: ' + text); }
+    try { await navigator.clipboard.writeText(text); say(t('Copied: {text}', { text })); }
     catch { await dialog({ title: text, ok: 'Close' }); }
   },
   share: el => {
@@ -4011,7 +4011,7 @@ ${toMarkdown(visible())}`;
     app.innerHTML = `
       <h1>${esc(m.title)}</h1>
       <p class="lede noprint">Cut along the solid lines, fold along the dashed one.
-        <button class="linky" data-act="back">go back</button></p>
+        <button class="linky" data-act="back">${t('go back')}</button></p>
       <div class="cutgrid">${m.cards.map(c => `<div class="cut">
         <div class="cut-front">${fmt(c.front)}</div>
         <div class="cut-back">${fmt(c.back)}</div>
@@ -4102,7 +4102,7 @@ ${toMarkdown(visible())}`;
     }
     due.sort((a, b) => a.due - b.due);
     const cards = [...due, ...shuffle(fresh).slice(0, Math.max(0, opt().size - due.length))].slice(0, opt().size);
-    if (!cards.length) return toast(`Nothing left to drill under “${tag}” today.`);
+    if (!cards.length) return toast(t('Nothing left to drill under “{tag}” today.', { tag }));
     launch({ id: 'tag:' + tag, title: `Tagged “${tag}”`, cards }, 'recall', cards, null, false, ACT.drilltag);
   },
 
