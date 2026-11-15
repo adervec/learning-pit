@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "localStorage": [
+    "pit.*"
+  ],
+  "indexedDB": [
+    "pit.media"
+  ],
+  "drive": [
+    "learning-pit-state.json"
+  ],
+  "caches": [],
+  "export": "Settings > Sync (Google Drive) > Export backup"
+}

@@ -1,6 +1,6 @@
-/* Learning Pit — recessed and calm. The pit is a pit; daylight is the exception, so the
-   dark palette is the one written out in full and the light one only restates the colours. */
-:root, :root[data-theme="dark"] {
+/* Learning Pit — recessed and calm. These are the Pit's own colours: the look the app is drawn
+   in when font.js cannot load, and the "Pit" theme it adds to the house list (standard 24). */
+:root {
   --bg: #06080b; --sunk: #0a0f15; --edge: #16202b; --line: #22323f;
   --surface: #0b1016; --raised: #142029; --well: #121a22; --glow: #101a24;
   --ink: #e9f2f8; --dim: #8ba0b1;
@@ -11,27 +11,24 @@
   --tap: 56px; --r: 16px;
   color-scheme: dark;
 }
-/* Daylight on a tablet. The accents darken because they are read as text here, not as light. */
-:root[data-theme="light"] {
-  --bg: #f2f6fa; --sunk: #e7edf4; --edge: #d4dfe9; --line: #bccbd8;
-  --surface: #ffffff; --raised: #eaf1f7; --well: #dbe4ed; --glow: #dfeaf5;
-  --ink: #15222c; --dim: #56697a;
-  --cyan: #0e6f92; --copper: #8f5a22; --good: #1c7d55; --bad: #b23b2b;
-  --cyanbg: #e2f1f8; --coppbg: #f8eee0; --goodbg: #e4f4ec;
-  --goodline: #9ed2ba; --badline: #e6b3aa; --coppline: #dfc296;
-  --barbg: rgba(242, 246, 250, .85); --cardring: rgba(21, 34, 44, .08);
-  color-scheme: light;
-}
-/* High contrast: black ground, white ink, hard edges, nothing translucent. */
-:root[data-theme="contrast"] {
-  --bg: #000000; --sunk: #000000; --edge: #ffffff; --line: #ffffff;
-  --surface: #000000; --raised: #111111; --well: #111111; --glow: #000000;
-  --ink: #ffffff; --dim: #e6e6e6;
-  --cyan: #66ffff; --copper: #ffdd99; --good: #88ff88; --bad: #ff9999;
-  --cyanbg: #001122; --coppbg: #221100; --goodbg: #002200;
-  --goodline: #88ff88; --badline: #ff9999; --coppline: #ffdd99;
-  --barbg: #000000; --cardring: #ffffff;
-  color-scheme: dark;
+/* Every other house theme (System, Light, Dark, Midnight … High contrast): the app's tokens are
+   read off the palette font.js puts on <html>; the shades it has no name for are mixed from it. */
+:root[data-house-theme]:not([data-house-theme="pit"]) {
+  --bg: var(--t-bg); --surface: var(--t-surface); --raised: var(--t-surface2); --well: var(--t-surface2);
+  --sunk: color-mix(in srgb, var(--t-bg) 92%, var(--t-text));
+  --line: var(--t-line); --edge: color-mix(in srgb, var(--t-line) 55%, var(--t-bg));
+  --glow: color-mix(in srgb, var(--t-accent) 8%, var(--t-bg));
+  --ink: var(--t-text); --dim: var(--t-dim);
+  --cyan: var(--t-accent); --copper: var(--t-warn); --good: var(--t-good); --bad: var(--t-bad);
+  --cyanbg: color-mix(in srgb, var(--t-accent) 12%, var(--t-bg));
+  --coppbg: color-mix(in srgb, var(--t-warn) 12%, var(--t-bg));
+  --goodbg: color-mix(in srgb, var(--t-good) 12%, var(--t-bg));
+  --goodline: color-mix(in srgb, var(--t-good) 45%, var(--t-bg));
+  --badline: color-mix(in srgb, var(--t-bad) 45%, var(--t-bg));
+  --coppline: color-mix(in srgb, var(--t-warn) 45%, var(--t-bg));
+  --barbg: color-mix(in srgb, var(--t-bg) 85%, transparent);
+  --cardring: color-mix(in srgb, var(--t-text) 8%, transparent);
+  color-scheme: var(--t-scheme);
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { height: 100%; }
@@ -560,8 +557,7 @@ h1:focus { outline: none; }   /* focused for orientation only, not a control */
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 
 @media (prefers-contrast: more) {
-  :root, :root[data-theme="dark"] { --dim: #b9cbd8; --line: #4a6376; --edge: #3a5063; }
-  :root[data-theme="light"] { --dim: #2b3c49; --line: #7c8fa0; --edge: #93a7b7; }
+  :root:not([data-house-theme]), :root[data-house-theme="pit"] { --dim: #b9cbd8; --line: #4a6376; --edge: #3a5063; }
   .btn, .opt, .tile, .game, .chip { border-width: 2px; }
   .tile-sub, .lede, small { color: var(--dim); }
 }

@@ -22,7 +22,8 @@ const out = document.getElementById('out');
 const frame = document.getElementById('frame');
 let pass = 0, fail = 0;
 
-const log = (cls, msg) => out.insertAdjacentHTML('beforeend', `<div class="${cls}">${msg}</div>`);
+// Messages quote what the app showed, which can be card text: always text, never markup.
+const log = (cls, msg) => { const d = document.createElement('div'); d.className = cls; d.textContent = msg; out.append(d); };
 const ok = m => { pass++; log('ok', '✓ ' + m); };
 const bad = (m, extra) => { fail++; log('fail', '✗ ' + m + (extra ? ` — ${extra}` : '')); };
 const check = (cond, m, extra) => cond ? ok(m) : bad(m, extra);
@@ -37,6 +38,8 @@ const wait = ms => new Promise(r => { waiters.set(++waitN, r); clock.postMessage
 // The app and this page share an origin, so its storage is ours. Put it back afterwards.
 // The suite reads English off the screen, whatever language this browser has picked.
 const langWas = localStorage.getItem('maker-lang');
+const themesWere = Object.keys(localStorage).filter(k => k.startsWith('maker-theme:')).map(k => [k, localStorage.getItem(k)]);
+const fontAtStart = localStorage.getItem('maker-font');   // put back even if a case is cut short
 localStorage.setItem('maker-lang', 'en');
 // Every pit.* key there now, plus the ones a run may create — the erase case removes them all.
 const KEYS = [...new Set(['pit.v1', 'pit.session', 'pit.wasSignedIn', 'pit.mockdrive', 'pit.cowork', 'pit.coachreply',
@@ -106,6 +109,13 @@ async function boot() {
 }
 // Poll a condition instead of trusting a clock: anything that reloads the library is slow on a cold cache.
 const until = async (fn, ms = 5000) => { for (let i = 0; i < ms / 50; i++) { try { if (fn()) return true; } catch { /* not there yet */ } await wait(50); } return false; };
+// The look is font.js's house theme picker now.
+const setLook = async v => {
+  const sel = await waitFor('app-theme-picker select', 3000);
+  sel.value = v;
+  sel.dispatchEvent(new frame.contentWindow.Event('change', { bubbles: true }));
+  await wait(250);
+};
 const click = async (sel, ms = 160) => {
   const el = await waitFor(sel);
   el.click();
@@ -738,25 +748,34 @@ try {
   check(!$('.picrow .thumb'), 'and the next card starts without it');
 
   // ---- 36. the pit can be lit for daylight, and stays that way ----
-  await boot();
-  await click('[data-act="settings"]', 250);
-  const look = $('[data-opt="theme"]');
-  check(!!look, 'the look can be chosen');
-  look.value = 'light';
-  look.dispatchEvent(new frame.contentWindow.Event('change', { bubbles: true }));
-  await wait(250);
-  check(doc().documentElement.dataset.theme === 'light', 'choosing light lights it');
-  const paper = frame.contentWindow.getComputedStyle(doc().body).backgroundColor;
-  check(paper === 'rgb(242, 246, 250)', 'the page really is on paper now', paper);
+  // a learner who had chosen a look before the house themes keeps it
+  Object.keys(localStorage).filter(k => k.startsWith('maker-theme:')).forEach(k => localStorage.removeItem(k));
+  {
+    const st = JSON.parse(localStorage.getItem('pit.v1') || 'null');
+    if (st) { st.profiles[st.active].opts.theme = 'light'; delete st.settings.themeMoved; localStorage.setItem('pit.v1', JSON.stringify(st)); }
+  }
   frame.src = './index.html?selftest';
   await new Promise(r => frame.onload = r);
-  await waitFor('[data-act="open"]');
-  check(doc().documentElement.dataset.theme === 'light', 'and it survives a reload');
-  await click('[data-act="settings"]', 250);
-  $('[data-opt="theme"]').value = 'dark';
-  $('[data-opt="theme"]').dispatchEvent(new frame.contentWindow.Event('change', { bubbles: true }));
-  await wait(250);
-  check(doc().documentElement.dataset.theme === 'dark', 'and the pit can be put back');
+  await waitFor('[data-act="open"], [data-act="setupme"]');
+  if (frame.contentWindow.appFont) {
+    check(frame.contentWindow.appFont.theme() === 'light', 'an old "always light" becomes the house Light', frame.contentWindow.appFont.theme());
+    await click('[data-act="settings"]', 250);
+    check(!!$('app-theme-picker select'), 'the look is the house theme list');
+    const ids = [...$$('app-theme-picker option')].map(o => o.value);
+    check(['system', 'light', 'dark', 'midnight', 'paper', 'contrast', 'pit'].every(id => ids.includes(id)), 'every house theme, and the Pit as an extra', ids.join(','));
+    await setLook('paper');
+    const paper = frame.contentWindow.getComputedStyle(doc().body).backgroundColor;
+    check(paper === 'rgb(246, 240, 226)', 'the page really is on paper now', paper);
+    frame.src = './index.html?selftest';
+    await new Promise(r => frame.onload = r);
+    await waitFor('[data-act="open"]');
+    check(doc().documentElement.dataset.houseTheme === 'paper', 'and it survives a reload');
+    await click('[data-act="settings"]', 250);
+    await setLook('pit');
+    check(doc().documentElement.dataset.theme === 'pit', 'and the pit can be put back');
+  } else {
+    check(frame.contentWindow.getComputedStyle(doc().body).backgroundColor === 'rgb(6, 8, 11)', 'with font.js out of reach the Pit stands');
+  }
 
   // ---- 37. a module can read itself out, and can be stopped ----
   await boot();
@@ -1346,20 +1365,15 @@ try {
     return contrast(c, frame.contentWindow.getComputedStyle(doc().body).backgroundColor);
   };
   await click('[data-act="settings"]', 300);
-  const setTheme = async v => {
-    const sel = $('[data-opt="theme"]');
-    sel.value = v;
-    sel.dispatchEvent(new frame.contentWindow.Event('change', { bubbles: true }));
-    await wait(250);
-  };
-  await setTheme('dark');
+  await setLook('pit');
   check(accentOn() >= 4.5, 'the accent reads against the pit', accentOn().toFixed(2));
-  await setTheme('light');
-  check(accentOn() >= 4.5, 'and against daylight', accentOn().toFixed(2));
   await click('[data-act="accent"][data-c="lime"]', 300);
   check(accentOn() >= 4.5, 'whichever colour the learner picked', accentOn().toFixed(2));
-  await setTheme('dark');
-  check(accentOn() >= 4.5, 'in either theme', accentOn().toFixed(2));
+  for (const look of ['light', 'dark', 'paper', 'ember']) {
+    await setLook(look);
+    check(accentOn() >= 4.5, `and against the house ${look}`, accentOn().toFixed(2));
+  }
+  await setLook('pit');
 
   // ---- 62. the due pile says how long it will take ----
   await boot();
@@ -1758,9 +1772,9 @@ try {
   await click('[data-act="endsitting"]', 400);   // results, so the sitting reaches the log
   await click('[data-act="home"]', 200);
   await click('[data-act="settings"]', 300);
-  const themeSel80 = $('[data-opt="theme"]');
-  themeSel80.value = 'dark';
-  themeSel80.dispatchEvent(new frame.contentWindow.Event('change', { bubbles: true }));
+  const rateSel80 = $('[data-opt="rate"]');
+  rateSel80.value = '0.7';
+  rateSel80.dispatchEvent(new frame.contentWindow.Event('change', { bubbles: true }));
   await wait(250);
   // the settings screen's own Connect/Sync button works with or without a client ID chip
   (await waitFor('.btn[data-act="signin"]', 6000)).click();
@@ -1785,7 +1799,7 @@ try {
   for (let t = 0; t < 60 && !(state().profiles?.Explorer?.stats?.reviews >= 1); t++) await wait(100);
   const arrived = state().profiles?.Explorer;
   check(arrived?.stats?.reviews >= 1, 'device two pulls the same learner down', JSON.stringify(arrived?.stats?.reviews));
-  check(arrived?.opts?.theme === 'dark', 'settings travel too', JSON.stringify(arrived?.opts?.theme));
+  check(arrived?.opts?.rate === 0.7, 'settings travel too', JSON.stringify(arrived?.opts?.rate));
   check((arrived?.stats?.sessions || []).length >= 1, 'and the sitting log with them');
 
   // ---- 81. a language-tagged module is spoken as that language ----
@@ -2254,12 +2268,11 @@ try {
   // ---- 101. a high-contrast look is one setting away ----
   await boot();
   await click('[data-act="settings"]', 250);
-  $('[data-opt="theme"]').value = 'contrast';
-  $('[data-opt="theme"]').dispatchEvent(new frame.contentWindow.Event('change', { bubbles: true }));
-  await wait(250);
-  check(doc().documentElement.dataset.theme === 'contrast', 'high contrast is stamped on the page');
+  await setLook('contrast');
+  check(doc().documentElement.dataset.houseTheme === 'contrast', 'high contrast is stamped on the page');
   const ink = frame.contentWindow.getComputedStyle(doc().body).color;
   check(ink === 'rgb(255, 255, 255)', 'and the ink is pure white', ink);
+  await setLook('pit');
 
   // ---- 101b. the house font: Atkinson by default, the reader's pick one setting away ----
   // font.js is fetched from the maker's site, so offline there is nothing to judge.
@@ -2285,7 +2298,8 @@ try {
   await boot();
   await click('[data-act="settings"]', 250);
   check(/\S/.test($('app-build-info')?.textContent || ''), 'settings names the running build', $('app-build-info')?.textContent);
-  localStorage.setItem('other-app.data', 'keep me');
+  const OTHER_APP = 'other-app.data';   // a key some other app on this origin owns
+  localStorage.setItem(OTHER_APP, 'keep me');
   localStorage.setItem('pit.coachreply', 'x');
   const fontBefore101c = localStorage.getItem('maker-font');
   localStorage.setItem('maker-font', 'serif');
@@ -2303,9 +2317,9 @@ try {
   check(dropped101c.join() === 'pit.media', 'and drops the picture database', dropped101c.join());
   check(!Object.keys(localStorage).some(k => k.startsWith('pit.') && k !== 'pit.v1'), 'every pit.* key is gone',
     Object.keys(localStorage).filter(k => k.startsWith('pit.')).join());
-  check(localStorage.getItem('other-app.data') === 'keep me' && localStorage.getItem('maker-font') === 'serif',
+  check(localStorage.getItem(OTHER_APP) === 'keep me' && localStorage.getItem('maker-font') === 'serif',
     'and the other apps on the origin keep theirs');
-  localStorage.removeItem('other-app.data');
+  localStorage.removeItem(OTHER_APP);
   if (fontBefore101c === null) localStorage.removeItem('maker-font'); else localStorage.setItem('maker-font', fontBefore101c);
   await boot();
   await click('[data-act="settings"]', 250);
@@ -2523,6 +2537,9 @@ try {
 } finally {
   restore();
   if (langWas === null) localStorage.removeItem('maker-lang'); else localStorage.setItem('maker-lang', langWas);
+  Object.keys(localStorage).filter(k => k.startsWith('maker-theme:')).forEach(k => localStorage.removeItem(k));
+  themesWere.forEach(([k, v]) => localStorage.setItem(k, v));
+  if (fontAtStart === null) localStorage.removeItem('maker-font'); else localStorage.setItem('maker-font', fontAtStart);
   await mediaCleanup();
   frame.src = 'about:blank';
   const el = document.getElementById('summary');

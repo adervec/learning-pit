@@ -37,12 +37,18 @@ const ACCENTS = {
   lime:   { dark: ['#a9e34b', '#ff922b'], light: ['#3f7a12', '#a4530e'] },
 };
 
+// The learner's accent belongs to the Pit's own look; every other house theme brings its own.
 function applyAccent() {
-  const set = ACCENTS[opt().accent] || ACCENTS.cyan;
-  const [accent, second] = document.documentElement.dataset.theme === 'light' ? set.light : set.dark;
-  document.documentElement.style.setProperty('--cyan', accent);
-  document.documentElement.style.setProperty('--copper', second);
+  const root = document.documentElement.style;
+  if (document.documentElement.dataset.theme !== 'pit') { root.removeProperty('--cyan'); root.removeProperty('--copper'); return; }
+  const [accent, second] = (ACCENTS[opt().accent] || ACCENTS.cyan).dark;
+  root.setProperty('--cyan', accent);
+  root.setProperty('--copper', second);
 }
+// The Pit — the app's own dark look — joins the house theme list as an extra (standard 24).
+window.appFont?.addThemes?.([{ id: 'pit', label: 'Pit', dark: true, colors: {
+  bg: '#06080b', surface: '#0b1016', surface2: '#142029', line: '#22323f', text: '#e9f2f8', dim: '#8ba0b1',
+  accent: '#63e0ff', 'on-accent': '#06080b', good: '#5fd39a', warn: '#d99b63', bad: '#e8735f' } }]);
 const newProfile = (avatar = '◎') => ({
   srs: {},
   stats: { reviews: 0, correct: 0, streak: 0, lastDay: '', stars: 0, days: {}, hits: {} },
@@ -477,7 +483,8 @@ const askYes = (title, ok = 'Delete') => dialog({ title, ok, danger: true });
 function toast(msg, label, fn) {
   const el = document.createElement('div');
   el.className = 'toast';
-  el.innerHTML = `<span>${esc(msg)}</span>${label ? '<button class="linky"></button>' : ''}`;
+  el.innerHTML = `<span>${esc(msg)}</span>`;
+  if (label) el.insertAdjacentHTML('beforeend', '<button class="linky"></button>');
   el.querySelector('button')?.addEventListener('click', () => { el.remove(); fn(); });
   if (label) el.querySelector('button').textContent = label;
   let stack = document.getElementById('toasts');
@@ -567,9 +574,6 @@ function render() {
   }
 }
 
-// 'auto' is resolved here rather than in a media query, so the stylesheet only ever has to
-// describe two themes and the whole app follows whichever is stamped on <html>.
-const LIGHT = matchMedia('(prefers-color-scheme: light)');
 // Type scale, as a percentage of the browser's own base size. Everything in the stylesheet is
 // in rem or clamp(), so one number moves the whole interface — for a five-year-old across the
 // room or for eyes that would rather not squint.
@@ -578,14 +582,21 @@ function applyTextSize() {
   document.documentElement.style.fontSize = pct === 100 ? '' : `${pct}%`;
 }
 
+// The look is the house theme list (font.js): chosen once per app, on this device. A learner who
+// had picked a look before keeps it — dark was the Pit, light and high contrast have house twins.
 function applyTheme() {
-  const t = opt().theme;
-  const light = t === 'light' || (t === 'auto' && LIGHT.matches);
-  document.documentElement.dataset.theme = t === 'contrast' ? 'contrast' : light ? 'light' : 'dark';
-  document.querySelector('meta[name="theme-color"]')
-    ?.setAttribute('content', t === 'contrast' ? '#000000' : light ? '#f2f6fa' : '#06080b');
+  const f = window.appFont;
+  if (f?.setTheme && !state.settings.themeMoved) {
+    const old = { dark: 'pit', light: 'light', contrast: 'contrast' }[opt().theme];
+    if (old && f.theme() === 'system') f.setTheme(old);
+    state.settings.themeMoved = 1;
+  }
+  const now = f?.themeNow?.();
+  // data-theme says which family the page is in: the Pit's own colours, or a house dark or light.
+  document.documentElement.dataset.theme = !now || now.id === 'pit' ? 'pit' : now.dark ? 'dark' : 'light';
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', now?.colors.bg || '#06080b');
 }
-LIGHT.addEventListener('change', () => { if (opt().theme === 'auto') applyTheme(); });
+document.addEventListener('app-theme-change', () => { try { render(); } catch { /* not booted yet */ } });
 
 // The count on the installed app's icon — the one reminder that costs nothing and nags
 // nobody. ponytail: setAppBadge is a no-op where unsupported; no capability dance.
@@ -987,17 +998,13 @@ function examBreakdown() {
       Drill the ${new Set((session.missed || []).map(c => c.front)).size} you missed</button></div>` : ''}`;
 }
 
-// The maker's app portal keeps a character sheet from what its apps report about you: one
-// entry per finished sitting, amount in units of ten minutes. Same-origin localStorage, so it
-// never leaves this browser. The selftest drives hundreds of sittings, so it is excluded.
+// The maker's hub keeps habits and a character sheet from what its apps report: one row per
+// finished sitting, through font.js's shared ledger. The sitting's start time is its id, so a
+// redrawn results screen never counts twice. The selftest drives hundreds of sittings: excluded.
 function portalActivity(startedAt) {
   if (location.search.includes('selftest')) return;
-  try {
-    const k = 'portal-activity', a = JSON.parse(localStorage.getItem(k) || '[]');
-    const mins = Math.max(1, Math.round((Date.now() - (startedAt || Date.now())) / 60000));
-    a.push([Math.round(Date.now() / 1000), 'learning-pit', 'study', Math.max(0.5, mins / 10)]);
-    localStorage.setItem(k, JSON.stringify(a.slice(-2000)));
-  } catch { /* quota - ignore */ }
+  const start = startedAt || Date.now();
+  window.appFont?.logSession?.({ kind: 'study', minutes: Math.max(1, Math.round((Date.now() - start) / 60000)), id: String(start) });
 }
 
 function results() {
@@ -2014,11 +2021,11 @@ function settings() {
         aria-label="${esc(t('Choose {avatar}', { avatar: a }))}">${a}</button>`).join('')}
       <button class="chip" data-act="rename">✎ ${t('rename')}</button>
     </div>
-    <div class="row wrap avatars">
+    ${document.documentElement.dataset.theme === 'pit' ? `<div class="row wrap avatars">
       ${Object.entries(ACCENTS).map(([name, set]) => `<button class="chip swatch ${opt().accent === name ? 'on' : ''}"
         data-act="accent" data-c="${name}" aria-label="${esc(t('Accent colour: {name}', { name }))}"
-        style="--sw:${document.documentElement.dataset.theme === 'light' ? set.light[0] : set.dark[0]}"><span></span></button>`).join('')}
-    </div>
+        style="--sw:${set.dark[0]}"><span></span></button>`).join('')}
+    </div>` : ''}
     <label class="row"><input type="checkbox" data-opt="kid" ${opt().kid ? 'checked' : ''}> ${t('Kid mode')} <small class="dim">— ${t('two big buttons, stars instead of numbers')}</small></label>
     <label class="row"><input type="checkbox" data-opt="tts" ${opt().tts ? 'checked' : ''}> ${t('Read cards aloud')}</label>
     ${voices().length ? `<label class="row">${t('Voice')}
@@ -2030,10 +2037,7 @@ function settings() {
       <button class="ghost sm" data-act="tryvoice">${t('Try it')}</button>
     </label>` : ''}
     <label class="row"><input type="checkbox" data-opt="sound" ${opt().sound ? 'checked' : ''}> ${t('Sound effects')}</label>
-    <label class="row">${t('Look')}
-      <select data-opt="theme">${[['auto', t('Follow the device')], ['dark', t('Always dark')], ['light', t('Always light')], ['contrast', t('High contrast')]]
-        .map(([v, l]) => `<option value="${v}" ${opt().theme === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
-    </label>
+    <div class="row housepick"><app-theme-picker label="${esc(t('Look'))}"></app-theme-picker></div>
     <label class="row">${t('Reading speed')}
       <select data-opt="rate">${[[0, t('Normal')], [0.7, t('Slow')], [1.15, t('Quick')]]
         .map(([v, l]) => `<option value="${v}" ${(opt().rate || 0) === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
@@ -2228,7 +2232,7 @@ function listen(onResult, lang) {
   if (!SpeechRec) return;
   if (recog) { recog.abort(); recog = null; }
   const r = recog = new SpeechRec();
-  r.lang = lang || navigator.language || 'en-US';
+  r.lang = lang || navigator.language || 'en';
   r.interimResults = false;
   r.maxAlternatives = 3;
   r.onresult = e => {
