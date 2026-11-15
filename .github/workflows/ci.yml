@@ -24,7 +24,9 @@ jobs:
         with:
           node-version: 22
       - run: node core.test.js
-      - run: node --check app.js && node --check core.js && node --check sw.js
+      # app.js and core.js are ES modules: plain `node --check app.js` sees the import, gives up
+      # and passes whatever follows. Reading them as modules from stdin really parses them.
+      - run: node --input-type=module --check < app.js && node --input-type=module --check < core.js && node --check sw.js
 
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'

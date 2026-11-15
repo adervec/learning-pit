@@ -27,7 +27,9 @@ server and it runs; copy the directory anywhere static and it's deployed.
 
 ```sh
 node core.test.js          # scheduling, parsing, merge, judging, tiles
-node --check app.js sw.js  # syntax
+node --input-type=module --check < app.js   # syntax — NOT `node --check app.js`, which sees the
+                                             # import, gives up and passes any later error
+node --check sw.js
 python -m http.server 8000 # then open /selftest.html — it drives the real UI — and click
                            # through whatever you changed yourself
 ```

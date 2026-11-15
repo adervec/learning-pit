@@ -2475,13 +2475,13 @@ const GAMES = {
           <button class="speak" data-act="speak" aria-label="Read aloud">🔊</button>
         </div>
         ${s.flipped ? (opt().kid ? `<div class="row grades kid">
-          <button class="btn again" data-act="grade" data-g="again">👎 Not yet</button>
-          <button class="btn good" data-act="grade" data-g="good">👍 Got it</button>
+          <button class="btn again" data-act="grade" data-g="again">👎 ${t('Not yet')}</button>
+          <button class="btn good" data-act="grade" data-g="good">👍 ${t('Got it')}</button>
         </div>` : `<div class="row grades">
-          <button class="btn again" data-act="grade" data-g="again">Again${dueIn(c, 'again')}</button>
-          <button class="btn good" data-act="grade" data-g="good">Good${dueIn(c, 'good')}</button>
-          <button class="btn easy" data-act="grade" data-g="easy">Easy${dueIn(c, 'easy')}</button>
-        </div>`) : `${peekLine(c)}<div class="row"><button class="btn wide" data-act="flip">Reveal</button></div>`}`;
+          <button class="btn again" data-act="grade" data-g="again">${t('Again')}${dueIn(c, 'again')}</button>
+          <button class="btn good" data-act="grade" data-g="good">${t('Good')}${dueIn(c, 'good')}</button>
+          <button class="btn easy" data-act="grade" data-g="easy">${t('Easy')}${dueIn(c, 'easy')}</button>
+        </div>`) : `${peekLine(c)}<div class="row"><button class="btn wide" data-act="flip">${t('Reveal')}</button></div>`}`;
       speak(s.flipped ? c.back : c.front);
     },
   },
@@ -2505,14 +2505,14 @@ const GAMES = {
         const c = s.show[s.i];
         return void (app.innerHTML = `
           ${progress()}
-          <p class="lede center">Reading ${s.i + 1} of ${s.show.length} — nothing is graded yet.</p>
+          <p class="lede center">${t('Reading {n} of {total} — nothing is graded yet.', { n: s.i + 1, total: s.show.length })}</p>
           <div class="pit small">
             <div class="card static"><div class="face">${pic(c)}${fmt(c.front)}
               <p class="answer">${fmt(c.back)}</p>${note(c)}${from(c)}</div></div>
             <button class="speak" data-act="speak" aria-label="Read aloud">🔊</button>
           </div>
           <div class="row">
-            <button class="btn wide" data-act="studynext">${s.i + 1 === s.show.length ? 'Now ask me' : 'Next'}</button>
+            <button class="btn wide" data-act="studynext">${s.i + 1 === s.show.length ? t('Now ask me') : t('Next')}</button>
           </div>`, speak(`${c.front}. ${c.back}`, false, null, c));
       }
       const c = s.queue[0];
@@ -2529,8 +2529,8 @@ const GAMES = {
         ${s.flipped ? `<div class="row grades ${opt().kid ? 'kid' : ''}">
           <button class="btn again" data-act="grade" data-g="again">${opt().kid ? '👎 Not yet' : 'Again'}</button>
           <button class="btn good" data-act="grade" data-g="good">${opt().kid ? '👍 Got it' : 'Good'}</button>
-          ${opt().kid ? '' : '<button class="btn easy" data-act="grade" data-g="easy">Easy</button>'}
-        </div>` : '<div class="row"><button class="btn wide" data-act="flip">Reveal</button></div>'}`;
+          ${opt().kid ? '' : `<button class="btn easy" data-act="grade" data-g="easy">${t('Easy')}</button>`}
+        </div>` : `<div class="row"><button class="btn wide" data-act="flip">${t('Reveal')}</button></div>`}`;
       speak(s.flipped ? c.back : c.front);
     },
   },
@@ -2552,7 +2552,7 @@ const GAMES = {
           const cls = s.picked == null ? '' : o === c.back ? 'right' : (i === s.picked ? 'wrong' : 'faded');
           return `<button class="opt ${cls}" data-act="pick" data-i="${i}" ${s.picked != null ? 'disabled' : ''}>${fmt(o)}</button>`;
         }).join('')}</div>
-        ${s.picked != null ? `${note(c)}<div class="row"><button class="btn wide" data-act="next">Continue</button></div>` : ''}`;
+        ${s.picked != null ? `${note(c)}<div class="row"><button class="btn wide" data-act="next">${t('Continue')}</button></div>` : ''}`;
       speak(c.front);
     },
   },
@@ -2575,15 +2575,15 @@ const GAMES = {
           <input id="ans" placeholder="Your answer" value="${esc(s.guess)}" ${v ? 'disabled' : ''}
             autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go">
           ${v ? '' : mic()}
-          ${v ? '' : '<button class="btn" type="submit">Check</button>'}
+          ${v ? '' : `<button class="btn" type="submit">${t('Check')}</button>`}
         </form>
-        ${v ? '' : '<button class="linky skip" data-act="skip">skip this one</button>' + peekLine(c)}
+        ${v ? '' : `<button class="linky skip" data-act="skip">${t('skip this one')}</button>` + peekLine(c)}
         ${v ? `<div class="verdict ${v}">
-          <b>${v === 'exact' ? 'Correct' : v === 'close' ? 'Close enough' : 'Not this time'}</b>
+          <b>${v === 'exact' ? t('Correct') : v === 'close' ? t('Close enough') : t('Not this time')}</b>
           ${typedDiff(s.guess, c.back, v)}${note(c)}
-          ${v === 'wrong' ? '<button class="linky" data-act="override">I actually had it — count it</button>' : ''}
+          ${v === 'wrong' ? `<button class="linky" data-act="override">${t('I actually had it — count it')}</button>` : ''}
         </div>
-        <div class="row"><button class="btn wide" data-act="next">Continue</button></div>` : ''}`;
+        <div class="row"><button class="btn wide" data-act="next">${t('Continue')}</button></div>` : ''}`;
       const el = document.getElementById('ans');
       if (!v) el.focus();
       document.getElementById('typef').addEventListener('submit', e => { e.preventDefault(); ACT.check(); });
@@ -2618,12 +2618,12 @@ const GAMES = {
             Grade the idea, not the wording.</p>
           <div class="verdict">${fmt(c.back)}${note(c)}</div>
           <div class="row grades">
-            <button class="btn again" data-act="grade" data-g="again">Missed it</button>
-            <button class="btn" data-act="grade" data-g="good">Roughly</button>
-            <button class="btn easy" data-act="grade" data-g="easy">Had it</button>
+            <button class="btn again" data-act="grade" data-g="again">${t('Missed it')}</button>
+            <button class="btn" data-act="grade" data-g="good">${t('Roughly')}</button>
+            <button class="btn easy" data-act="grade" data-g="easy">${t('Had it')}</button>
           </div>`
         : `<div class="row wrap">
-            <button class="btn" data-act="reveal">Check it</button>
+            <button class="btn" data-act="reveal">${t('Check it')}</button>
             ${SpeechRec ? `<button type="button" class="micbtn ${recog ? 'on' : ''}" data-act="saymore"
               aria-label="Dictate">🎤</button>` : ''}
           </div>`}`;
@@ -2660,13 +2660,13 @@ const GAMES = {
           <input id="ans" placeholder="Missing word" value="${esc(s.guess)}" ${v ? 'disabled' : ''}
             autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go">
           ${v ? '' : mic()}
-          ${v ? '' : '<button class="btn" type="submit">Check</button>'}
+          ${v ? '' : `<button class="btn" type="submit">${t('Check')}</button>`}
         </form>
-        ${v ? '' : '<button class="linky skip" data-act="skip">skip this one</button>'}
+        ${v ? '' : `<button class="linky skip" data-act="skip">${t('skip this one')}</button>`}
         ${v ? `<div class="verdict ${v}">
           <b>${v === 'wrong' ? 'It was' : 'Yes'} — ${esc(s.blank.answer)}</b>${note(c)}
         </div>
-        <div class="row"><button class="btn wide" data-act="next">Continue</button></div>` : ''}`;
+        <div class="row"><button class="btn wide" data-act="next">${t('Continue')}</button></div>` : ''}`;
       if (!v) document.getElementById('ans').focus();
       document.getElementById('typef').addEventListener('submit', e => { e.preventDefault(); ACT.checkblank(); });
     },
@@ -2680,21 +2680,21 @@ const GAMES = {
     frame() {
       const s = session, c = s.queue[0];
       if (!c) return finish();
-      const status = { ask: 'Listen…', listening: 'Your turn — say it', verdict: '' }[s.phase] || '';
+      const status = { ask: t('Listen…'), listening: t('Your turn — say it'), verdict: '' }[s.phase] || '';
       app.innerHTML = `
         ${progress()}
         <div class="pit">
           <div class="card static ${s.phase === 'listening' ? 'flipped' : ''}"><div class="face">
             ${pic(c)}${fmt(c.front)}
-            ${s.verdict ? `<p class="note">${s.verdict === 'wrong' ? 'The answer is ' : ''}${fmt(c.back)}</p>` : ''}
-            ${s.heard ? `<small class="from">heard: ${esc(s.heard)}</small>` : ''}
+            ${s.verdict ? `<p class="note">${s.verdict === 'wrong' ? t('The answer is {answer}', { answer: fmt(c.back) }) : fmt(c.back)}</p>` : ''}
+            ${s.heard ? `<small class="from">${t('heard: {words}', { words: esc(s.heard) })}</small>` : ''}
           </div></div>
         </div>
         <p class="lede center ${s.phase === 'listening' ? 'pulsing' : ''}">${status}</p>
         <div class="row grades">
-          <button class="btn again" data-act="handsgrade" data-g="again">Missed it</button>
-          <button class="btn" data-act="handsrepeat">Again, please</button>
-          <button class="btn good" data-act="handsgrade" data-g="good">Got it</button>
+          <button class="btn again" data-act="handsgrade" data-g="again">${t('Missed it')}</button>
+          <button class="btn" data-act="handsrepeat">${t('Again, please')}</button>
+          <button class="btn good" data-act="handsgrade" data-g="good">${t('Got it')}</button>
         </div>`;
       if (s.phase === 'ask') {
         s.phase = 'asking';
@@ -2712,7 +2712,7 @@ const GAMES = {
             s.phase = 'verdict';
             grade(c, best.v === 'wrong' ? 'again' : 'good');
             render();
-            speak(best.v === 'wrong' ? `Not quite. ${c.back}` : 'Yes.', true,
+            speak(best.v === 'wrong' ? t('Not quite. {answer}', { answer: c.back }) : t('Yes.'), true,
               () => { if (session === s && s.queue[0] === c) ACT.handsnext(); });
           });
         });
@@ -2732,7 +2732,7 @@ const GAMES = {
       const s = session, c = s.queue[0];
       if (!c) return finish();
       const cov = s.heard ? coverage(c.back, s.heard) : null;
-      const status = { ask: 'Listen…', listening: 'Your turn — say it', verdict: '' }[s.phase] || '';
+      const status = { ask: t('Listen…'), listening: t('Your turn — say it'), verdict: '' }[s.phase] || '';
       app.innerHTML = `
         ${progress()}
         <div class="pit">
@@ -2740,14 +2740,14 @@ const GAMES = {
             ${pic(c)}<small class="prompt">${fmt(c.front)}</small>${fmt(c.back)}
             ${cov?.points.length ? `<div class="hits">${cov.points.map(p =>
               `<span class="hit ${cov.hit.includes(p) ? 'got' : 'miss'}">${esc(p)}</span>`).join('')}</div>` : ''}
-            ${s.heard ? `<small class="from">heard: ${esc(s.heard)}</small>` : ''}
+            ${s.heard ? `<small class="from">${t('heard: {words}', { words: esc(s.heard) })}</small>` : ''}
           </div></div>
         </div>
         <p class="lede center ${s.phase === 'listening' ? 'pulsing' : ''}">${status}</p>
         <div class="row grades">
-          <button class="btn again" data-act="handsgrade" data-g="again">Not yet</button>
-          <button class="btn" data-act="handsrepeat">Say it again</button>
-          <button class="btn good" data-act="handsgrade" data-g="good">Got it</button>
+          <button class="btn again" data-act="handsgrade" data-g="again">${t('Not yet')}</button>
+          <button class="btn" data-act="handsrepeat">${t('Say it again')}</button>
+          <button class="btn good" data-act="handsgrade" data-g="good">${t('Got it')}</button>
         </div>`;
       if (s.phase === 'ask') {
         s.phase = 'asking';
@@ -2861,7 +2861,7 @@ const GAMES = {
           return `<button class="bin ${cls}" data-act="sortpick" data-bin="${esc(b.id)}" ${s.picked ? 'disabled' : ''}>
             <span class="glyph">${esc(b.icon || '◈')}</span>${esc(b.title)}</button>`;
         }).join('')}</div>
-        ${s.picked ? '<div class="row"><button class="btn wide" data-act="next">Continue</button></div>' : ''}`;
+        ${s.picked ? `<div class="row"><button class="btn wide" data-act="next">${t('Continue')}</button></div>` : ''}`;
     },
   },
 
@@ -2884,7 +2884,7 @@ const GAMES = {
           <button class="speak" data-act="speak" aria-label="Read aloud">🔊</button>
         </div>
         ${v ? `<div class="verdict ${v}"><b>${v === 'wrong' ? 'It was ' + esc(c.back) : 'Yes'}</b>${note(c)}</div>
-          <div class="row"><button class="btn wide" data-act="next">Continue</button></div>`
+          <div class="row"><button class="btn wide" data-act="next">${t('Continue')}</button></div>`
         : `<div class="pad">
             ${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button class="key" data-act="padtap" data-n="${n}">${n}</button>`).join('')}
             <button class="key dim" data-act="padback" aria-label="Delete">⌫</button>
@@ -2920,10 +2920,10 @@ const GAMES = {
         </div>
         ${answered ? `<div class="verdict ${right ? 'exact' : 'wrong'}">
             <b>${right ? 'Right' : 'No'} — the answer is ${fmt(c.back)}</b>${note(c)}</div>
-          <div class="row"><button class="btn wide" data-act="next">Continue</button></div>`
+          <div class="row"><button class="btn wide" data-act="next">${t('Continue')}</button></div>`
         : `<div class="row grades kid">
-            <button class="btn good" data-act="tf" data-v="1">✔ True</button>
-            <button class="btn again" data-act="tf" data-v="0">✘ False</button>
+            <button class="btn good" data-act="tf" data-v="1">✔ ${t('True')}</button>
+            <button class="btn again" data-act="tf" data-v="0">✘ ${t('False')}</button>
           </div>`}`;
       speak(`${c.front}. ${s.claim.text}?`);
     },
@@ -2949,7 +2949,7 @@ const GAMES = {
           return `<button class="pictile ${cls}" data-act="point" data-i="${i}" aria-label="${esc(t.back)}"
             ${s.picked != null ? 'disabled' : ''}>${pic(t)}</button>`;
         }).join('')}</div>
-        ${s.picked != null ? `${note(c)}<div class="row"><button class="btn wide" data-act="next">Continue</button></div>` : ''}`;
+        ${s.picked != null ? `${note(c)}<div class="row"><button class="btn wide" data-act="next">${t('Continue')}</button></div>` : ''}`;
       if (s.picked == null) speak(c.back, true, null, c);
     },
   },
@@ -2973,13 +2973,13 @@ const GAMES = {
         </div>
         <div class="slate">
           <canvas id="slate"></canvas>
-          <button class="ghost sm wipe" data-act="slateclear">Clear</button>
+          <button class="ghost sm wipe" data-act="slateclear">${t('Clear')}</button>
         </div>
         ${s.shown ? `<div class="row grades kid">
-            <button class="btn again" data-act="grade" data-g="again">👎 Not yet</button>
-            <button class="btn good" data-act="grade" data-g="good">👍 Got it</button>
+            <button class="btn again" data-act="grade" data-g="again">👎 ${t('Not yet')}</button>
+            <button class="btn good" data-act="grade" data-g="good">👍 ${t('Got it')}</button>
           </div>`
-        : `<div class="row"><button class="btn wide" data-act="showword">Show me the word</button></div>`}`;
+        : `<div class="row"><button class="btn wide" data-act="showword">${t('Show me the word')}</button></div>`}`;
       drawSlate(c.back.toUpperCase(), s.shown);
       speak(c.front);
     },
@@ -3005,14 +3005,14 @@ const GAMES = {
             ${pic(c)}<small class="prompt">${fmt(c.front)}</small>
             <span class="slots">${s.slots.map((t, i) => `<button class="slot ${t === null ? '' : 'full'}"
               data-act="unslot" data-i="${i}" ${t === null ? 'disabled' : ''}>${t === null ? '' : esc(s.tiles[t])}</button>`).join('')}</span>
-            ${s.verdict === 'wrong' ? `<small class="hint">It was ${esc(c.back)}</small>` : ''}${from(c)}
+            ${s.verdict === 'wrong' ? `<small class="hint">${t('It was {answer}', { answer: esc(c.back) })}</small>` : ''}${from(c)}
           </div></div>
           <button class="speak" data-act="speak" aria-label="Read aloud">🔊</button>
         </div>
         <div class="letters">${s.tiles.map((ch, i) => `<button class="letter"
           data-act="slot" data-i="${i}" ${s.slots.includes(i) ? 'disabled' : ''}>${esc(ch)}</button>`).join('')}</div>
-        ${filled === s.slots.length && !s.verdict ? '<div class="row"><button class="btn wide" data-act="checkspell">Check</button></div>' : ''}
-        ${s.verdict ? `<div class="row"><button class="btn wide" data-act="next">Continue</button></div>` : ''}`;
+        ${filled === s.slots.length && !s.verdict ? `<div class="row"><button class="btn wide" data-act="checkspell">${t('Check')}</button></div>` : ''}
+        ${s.verdict ? `<div class="row"><button class="btn wide" data-act="next">${t('Continue')}</button></div>` : ''}`;
       speak(c.front);
     },
   },
@@ -3045,10 +3045,10 @@ const GAMES = {
           : '<li><span class="step empty"></span></li>').join('')}</ol>
         <div class="steps">${deal.map((t, i) => `<button class="step" data-act="ostep" data-i="${i}"
           ${placed.includes(i) || v ? 'disabled' : ''}>${fmt(t)}</button>`).join('')}</div>
-        ${v ? `<div class="verdict ${v}"><b>${v === 'wrong' ? 'The order is' : 'Yes'}</b>
+        ${v ? `<div class="verdict ${v}"><b>${v === 'wrong' ? t('The order is') : t('Yes')}</b>
             ${v === 'wrong' ? `<p>${items.map(fmt).join(' → ')}</p>` : ''}${note(c)}</div>
-          <div class="row"><button class="btn wide" data-act="next">Continue</button></div>`
-        : placed.length === items.length ? '<div class="row"><button class="btn wide" data-act="ocheck">Check</button></div>' : ''}`;
+          <div class="row"><button class="btn wide" data-act="next">${t('Continue')}</button></div>`
+        : placed.length === items.length ? `<div class="row"><button class="btn wide" data-act="ocheck">${t('Check')}</button></div>` : ''}`;
       speak(c.front);
     },
   },
@@ -3081,15 +3081,15 @@ const GAMES = {
         app.innerHTML = `
           <div class="pit"><div class="card static"><div class="face">
             <span class="score">60<small>s</small></span>
-            <p>As many as you can. It starts when you do.</p>
+            <p>${t('As many as you can. It starts when you do.')}</p>
           </div></div></div>
-          <div class="row"><button class="btn wide" data-act="gospeed">Start</button></div>`;
+          <div class="row"><button class="btn wide" data-act="gospeed">${t('Start')}</button></div>`;
         return;
       }
       if (!s.opts) s.opts = shuffle([c.back, ...distractors(c, s.pool)]);
       app.innerHTML = `
         <div class="prog clock"><i id="clock" style="width:${Math.max(0, ((s.ends - Date.now()) / 60000) * 100)}%"></i></div>
-        <div class="scoreline"><b>${s.right}</b> correct</div>
+        <div class="scoreline">${t('{n} correct', { n: `<b>${s.right}</b>` })}</div>
         <div class="pit small">
           <div class="card static"><div class="face">${pic(c)}${fmt(c.front)}${from(c)}</div></div>
         </div>
@@ -3117,7 +3117,7 @@ const GAMES = {
       }
       app.innerHTML = `
         ${progress()}
-        <p class="lede center">Pair each prompt with its answer.</p>
+        <p class="lede center">${t('Pair each prompt with its answer.')}</p>
         <div class="grid">${s.tiles.map((t, n) => {
           const done = s.matched.has(t.i);
           return `<button class="mtile ${done ? 'done' : ''} ${s.sel === n ? 'sel' : ''} ${t.side}"
@@ -3202,7 +3202,7 @@ function launch(module, key, cards, pool, exam, again) {
   const g = GAMES[key];
   if (!g) return;
   if (g.filter) cards = cards.filter(g.filter);
-  if (!cards.length) return toast('No cards in this module suit that exercise yet.');
+  if (!cards.length) return toast(t('No cards in this module suit that exercise yet.'));
   // pool is where wrong-answer options come from — the whole module, not just this session.
   // `again` is how this session was started, so the results screen can repeat it exactly.
   session = { module, game: g, key, cards, pool: pool || module.cards, exam, again,
