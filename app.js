@@ -182,7 +182,7 @@ function save({ sync = true } = {}) {
       // Out of storage: reviews would silently stop persisting, so say so loudly once.
       if (!warnedFull) {
         warnedFull = true;
-        toast('Storage is full — progress is not being saved. Export a backup, then remove a module.', 'Settings', () => go({ name: 'settings' }));
+        toast(t('Storage is full — progress is not being saved. Export a backup, then remove a module.'), 'Settings', () => go({ name: 'settings' }));
       }
       return;
     }
@@ -311,7 +311,7 @@ if (new URLSearchParams(location.search).has('mock-drive')) {
     token = 'mock';
     tokenExp = Date.now() + 3600e3;
     loadAccount();
-    toast('Drive mock active — nothing leaves this device.');
+    toast(t('Drive mock active — nothing leaves this device.'));
   }).catch(e => console.warn('mock-drive:', e.message));
 }
 
@@ -409,18 +409,18 @@ async function shareModule(m) {
   if (url.length > 8000) {
     const file = new File([JSON.stringify(m, null, 2)], `${m.id}.json`, { type: 'application/json' });
     if (navigator.canShare?.({ files: [file] })) {
-      try { await navigator.share({ files: [file], title: m.title }); return say('Shared.'); }
+      try { await navigator.share({ files: [file], title: m.title }); return say(t('Shared.')); }
       catch { /* dismissed */ }
     }
     download(`${m.id}.json`, JSON.stringify(m, null, 2), 'application/json');
-    return say('Too big for a link — saved as a file instead.');
+    return say(t('Too big for a link — saved as a file instead.'));
   }
   if (navigator.share) {
-    try { await navigator.share({ title: m.title, text: `Flashcards: ${m.title}`, url }); return say('Shared.'); }
+    try { await navigator.share({ title: m.title, text: `Flashcards: ${m.title}`, url }); return say(t('Shared.')); }
     catch { /* user dismissed the sheet */ }
   }
   await navigator.clipboard.writeText(url);
-  say('Link copied — anyone who opens it gets this module.');
+  say(t('Link copied — anyone who opens it gets this module.'));
 }
 
 // ---------------- dialogs ----------------
@@ -478,7 +478,7 @@ async function grownUp() {
   const said = await dialog({ title: `Grown-ups only. What is ${a} × ${b}?`, value: '', ok: 'Enter' });
   if (said === null) return false;
   if (Number(String(said).trim()) === a * b) return true;
-  toast('Not quite — ask a grown-up.');
+  toast(t('Not quite — ask a grown-up.'));
   return false;
 }
 const askYes = (title, ok = 'Delete') => dialog({ title, ok, danger: true });
@@ -513,7 +513,7 @@ function undoable(msg, restore) {
   }
   toast(msg, 'Undo', async () => {
     await restore();
-    say('Put back.');
+    say(t('Put back.'));
   });
 }
 
@@ -821,15 +821,15 @@ function setupView() {
 function quickView() {
   const target = quickTarget();
   app.innerHTML = `
-    <button class="back" data-act="back">‹ back</button>
-    <h1>Quick card</h1>
+    <button class="back" data-act="back">‹ ${t('back')}</button>
+    <h1>${t('Quick card')}</h1>
     <p class="lede">Straight into a module you already study. It joins the new pile and comes
     round on schedule like any other card.</p>
     <form id="quickf" class="stack">
       <label class="field">Into
         <select id="qmod">${modules.map(m => `<option value="${esc(m.id)}" ${m.id === target ? 'selected' : ''}>${
           esc((m.icon ? m.icon + ' ' : '') + m.title)} (${m.cards.length})</option>`).join('')}
-          <option value="+">＋ a new module…</option></select>
+          <option value="+">＋ ${t('a new module…')}</option></select>
       </label>
       <label class="field">Question
         <textarea id="qfront" rows="2" placeholder="What are you asking yourself?"></textarea>
@@ -837,23 +837,23 @@ function quickView() {
       <label class="field">Answer
         <textarea id="qback" rows="2" placeholder="The thing you want to come back to you"></textarea>
       </label>
-      <label class="field">Why <small class="dim">— optional, shown after you answer</small>
+      <label class="field">${t('Why')} <small class="dim">— optional, shown after you answer</small>
         <textarea id="qnote" rows="2"></textarea>
       </label>
       <div class="row picrow">
         ${view.pic ? `<img class="thumb" src="${esc(view.pic)}" alt="">` : ''}
         <label class="btn ghost">${view.pic ? 'Replace picture' : 'Add a picture'}
           <input class="sr" type="file" accept="image/*" id="qpic"></label>
-        ${view.pic ? '<button class="ghost sm" type="button" data-act="quicknopic">Remove</button>' : ''}
+        ${view.pic ? `<button class="ghost sm" type="button" data-act="quicknopic">${t('Remove')}</button>` : ''}
       </div>
       <div class="row">
-        <button class="btn" type="submit">Add card</button>
-        <button class="btn ghost" type="button" data-act="quickdone">Done</button>
+        <button class="btn" type="submit">${t('Add card')}</button>
+        <button class="btn ghost" type="button" data-act="quickdone">${t('Done')}</button>
       </div>
     </form>
-    <p class="lede dim">Ctrl/⌘ + Enter adds it and clears the fields for the next one.</p>
+    <p class="lede dim">${t('Ctrl/⌘ + Enter adds it and clears the fields for the next one.')}</p>
     <p id="err" class="err"></p>
-    ${(view.added || []).length ? `<h2>Added just now</h2><div class="list">${view.added.map(a => `
+    ${(view.added || []).length ? `<h2>${t('Added just now')}</h2><div class="list">${view.added.map(a => `
       <div class="li"><span>${esc(a.front)} <small>${esc(a.module)}</small></span></div>`).join('')}</div>` : ''}`;
   const form = document.getElementById('quickf');
   document.getElementById('qpic').addEventListener('change', async e => {
@@ -1154,8 +1154,8 @@ const PICK_ROWS = 60;
 function importView() {
   const pend = view.pending;
   app.innerHTML = `
-    <button class="back" data-act="back">‹ back</button>
-    <h1>Import a module</h1>
+    <button class="back" data-act="back">‹ ${t('back')}</button>
+    <h1>${t('Import a module')}</h1>
     ${pend ? `
       <p class="lede">Found ${pend.reduce((n, m) => n + m.cards.length, 0)} cards in ${pend.length} module${pend.length > 1 ? 's' : ''}.</p>
       ${pend.map(m => {
@@ -1177,37 +1177,37 @@ function importView() {
         <ol class="picklist">${m.cards.slice(0, PICK_ROWS).map((c, i) => `<li>
           <label><input type="checkbox" class="pick" data-drop="${esc(m.id)}:${i}"
             ${view.drop?.includes(m.id + ':' + i) ? '' : 'checked'}>
-          <span>${esc(c.front)}${fresh.has(ident(c)) ? ' <b class="newtag">new</b>' : ''}</span><em>${esc(c.back)}</em></label></li>`).join('')}</ol>
+          <span>${esc(c.front)}${fresh.has(ident(c)) ? ` <b class="newtag">${t('new')}</b>` : ''}</span><em>${esc(c.back)}</em></label></li>`).join('')}</ol>
         ${m.cards.length > PICK_ROWS
           ? `<small class="dim">…and ${m.cards.length - PICK_ROWS} more, all included</small>` : ''}
       </div>`;
       }).join('')}
       <div class="row">
-        <button class="btn" data-act="commit">Add to library</button>
-        <button class="btn ghost" data-act="import">Start over</button>
+        <button class="btn" data-act="commit">${t('Add to library')}</button>
+        <button class="btn ghost" data-act="import">${t('Start over')}</button>
       </div>`
     : `
       <p class="lede">Paste anything: JSON, a markdown table, <code>Q:</code>/<code>A:</code> lines,
-      a bullet glossary, or <code>front :: back</code> per line.</p>
+      a bullet glossary, or <code>${t('front :: back')}</code> ${t('per line.')}</p>
       <textarea id="paste" rows="9" spellcheck="false" aria-label="Paste cards here"
         placeholder="Paste Claude's answer here…"></textarea>
       <div class="row wrap">
-        <button class="btn" data-act="paste">Read it</button>
-        ${navigator.clipboard?.readText ? '<button class="btn ghost" data-act="clip">Paste from clipboard</button>' : ''}
-        <label class="btn ghost">Open file…<input class="sr" type="file" accept=".json,.md,.txt,.csv,.tsv,text/*" multiple id="file"></label>
+        <button class="btn" data-act="paste">${t('Read it')}</button>
+        ${navigator.clipboard?.readText ? `<button class="btn ghost" data-act="clip">${t('Paste from clipboard')}</button>` : ''}
+        <label class="btn ghost">${t('Open file…')}<input class="sr" type="file" accept=".json,.md,.txt,.csv,.tsv,text/*" multiple id="file"></label>
       </div>
       <div class="row">
         <input id="url" aria-label="URL of a module to fetch" placeholder="…or a URL to a module JSON">
-        <button class="btn ghost" data-act="fetchurl">Fetch</button>
+        <button class="btn ghost" data-act="fetchurl">${t('Fetch')}</button>
       </div>
       <p class="lede dim">Drop a file anywhere on this screen. Not sure what to ask Claude for?
-      <button class="linky" data-act="copyprompt">Copy the prompt</button>, or use the
-      <a class="linky" href="PROMPT.md" target="_blank" rel="noopener">full authoring brief</a>
+      <button class="linky" data-act="copyprompt">${t('Copy the prompt')}</button>, or use the
+      <a class="linky" href="PROMPT.md" target="_blank" rel="noopener">${t('full authoring brief')}</a>
       for a module you care about.</p>`}
     <p id="err" class="err"></p>
-    ${(state.custom || []).length ? `<h2>Imported</h2><div class="list">${state.custom.map(m => `
+    ${(state.custom || []).length ? `<h2>${t('Imported')}</h2><div class="list">${state.custom.map(m => `
       <div class="li"><span>${esc(m.title)} <small>${m.cards.length} cards</small></span>
-      <button class="ghost sm" data-act="delcustom" data-id="${esc(m.id)}">remove</button></div>`).join('')}</div>` : ''}`;
+      <button class="ghost sm" data-act="delcustom" data-id="${esc(m.id)}">${t('remove')}</button></div>`).join('')}</div>` : ''}`;
   document.getElementById('file')?.addEventListener('change', e => readFiles(e.target.files));
   for (const box of app.querySelectorAll('[data-drop]')) {
     box.addEventListener('change', e => {
@@ -1352,7 +1352,7 @@ function browseView(id) {
   if (!m) { view = { name: 'home' }; return home(); }
   const srs = P().srs;
   app.innerHTML = `
-    <button class="back" data-act="back">‹ back</button>
+    <button class="back" data-act="back">‹ ${t('back')}</button>
     <h1>${esc(m.icon || '')} ${esc(m.title)}</h1>
     <p class="lede">${m.cards.length} cards, in order. Nothing here is graded.</p>
     ${window.speechSynthesis ? `<div class="row wrap">
@@ -1421,17 +1421,17 @@ function editView(id) {
   if (!m) return ACT.home();
   const srs = P().srs, editing = view.editing;
   app.innerHTML = `
-    <button class="back" data-act="back">‹ back</button>
-    <h1>Edit</h1>
+    <button class="back" data-act="back">‹ ${t('back')}</button>
+    <h1>${t('Edit')}</h1>
     <div class="row">
-      <label class="stack icon-field">Icon<input data-field="icon" value="${esc(m.icon || '')}" maxlength="4"></label>
-      <label class="stack grow">Title<input data-field="title" value="${esc(m.title)}"></label>
+      <label class="stack icon-field">${t('Icon')}<input data-field="icon" value="${esc(m.icon || '')}" maxlength="4"></label>
+      <label class="stack grow">${t('Title')}<input data-field="title" value="${esc(m.title)}"></label>
     </div>
-    <label class="stack">Description<input data-field="description" value="${esc(m.description || '')}"></label>
+    <label class="stack">${t('Description')}<input data-field="description" value="${esc(m.description || '')}"></label>
     <div class="row">
-      <label class="stack grow">Tags <small class="dim">(comma separated — they drive the filters)</small>
+      <label class="stack grow">${t('Tags')} <small class="dim">(comma separated — they drive the filters)</small>
         <input data-field="tags" value="${esc((m.tags || []).join(', '))}"></label>
-      <label class="stack icon-field">Spoken as <small class="dim">(fr, de…)</small>
+      <label class="stack icon-field">${t('Spoken as')} <small class="dim">(fr, de…)</small>
         <input data-field="lang" value="${esc(m.lang || '')}" maxlength="12" placeholder="—"></label>
     </div>
     ${auditBanner(m)}
@@ -1450,27 +1450,27 @@ function editView(id) {
         <small class="dim state">${cardState(s)}</small>
       </div>`;
       return `<div class="li editing">
-        <label class="stack">Front<textarea data-card="front" rows="2">${esc(c.front)}</textarea></label>
-        <label class="stack">Back<textarea data-card="back" rows="2">${esc(c.back)}</textarea></label>
-        <label class="stack">Hint <small class="dim">(shown before the answer)</small><input data-card="hint" value="${esc(c.hint || '')}"></label>
-        <label class="stack">Note <small class="dim">(the why, shown after)</small><textarea data-card="note" rows="2">${esc(c.note || '')}</textarea></label>
-        <label class="stack">Source <small class="dim">(a link back to where this came from)</small><input data-card="source" value="${esc(c.source || '')}"></label>
-        <label class="stack">Also accept <small class="dim">(one per line — other wordings that count as right)</small><textarea data-card="alt" rows="2">${esc((c.alt || []).join('\n'))}</textarea></label>
-        <label class="stack">Wrong answers <small class="dim">(one per line, for multiple choice)</small><textarea data-card="options" rows="2">${esc((c.options || []).join('\n'))}</textarea></label>
-        <div class="stack">Sound <small class="dim">(a recording of the answer)</small>
+        <label class="stack">${t('Front')}<textarea data-card="front" rows="2">${esc(c.front)}</textarea></label>
+        <label class="stack">${t('Back')}<textarea data-card="back" rows="2">${esc(c.back)}</textarea></label>
+        <label class="stack">${t('Hint')} <small class="dim">(shown before the answer)</small><input data-card="hint" value="${esc(c.hint || '')}"></label>
+        <label class="stack">${t('Note')} <small class="dim">(the why, shown after)</small><textarea data-card="note" rows="2">${esc(c.note || '')}</textarea></label>
+        <label class="stack">${t('Source')} <small class="dim">(a link back to where this came from)</small><input data-card="source" value="${esc(c.source || '')}"></label>
+        <label class="stack">${t('Also accept')} <small class="dim">(one per line — other wordings that count as right)</small><textarea data-card="alt" rows="2">${esc((c.alt || []).join('\n'))}</textarea></label>
+        <label class="stack">${t('Wrong answers')} <small class="dim">(one per line, for multiple choice)</small><textarea data-card="options" rows="2">${esc((c.options || []).join('\n'))}</textarea></label>
+        <div class="stack">${t('Sound')} <small class="dim">(a recording of the answer)</small>
           <div class="row wrap picrow">
             ${c.audio ? '<button class="ghost sm" data-act="playcard">▶ play</button>' : ''}
             <button class="ghost sm ${recorder ? 'recording' : ''}" data-act="rec">${recorder ? '■ stop' : '● record'}</button>
-            ${c.audio ? '<button class="ghost sm" data-act="delaudio">Remove</button>' : ''}
+            ${c.audio ? `<button class="ghost sm" data-act="delaudio">${t('Remove')}</button>` : ''}
           </div>
         </div>
-        <div class="stack">Picture <small class="dim">(shown with the question)</small>
+        <div class="stack">${t('Picture')} <small class="dim">(shown with the question)</small>
           <div class="row wrap picrow">
             ${c.image ? `<img class="thumb" src="${esc(c.image)}" alt="">` : ''}
             <label class="btn ghost">${c.image ? 'Replace' : 'Add a picture'}
               <input class="sr" type="file" accept="image/*" id="cardpic"></label>
-            ${navigator.onLine ? '<button class="ghost sm" data-act="findpic">Find one</button>' : ''}
-            ${c.image ? '<button class="ghost sm" data-act="delpic">Remove</button>' : ''}
+            ${navigator.onLine ? `<button class="ghost sm" data-act="findpic">${t('Find one')}</button>` : ''}
+            ${c.image ? `<button class="ghost sm" data-act="delpic">${t('Remove')}</button>` : ''}
           </div>
           ${view.found ? `<p class="lede small-note">${view.found.length
             ? 'From Wikimedia Commons — tap one to use it. The card keeps a link to where it came from.'
@@ -1479,10 +1479,10 @@ function editView(id) {
             aria-label="${esc(f.title)}"><img class="cardimg" src="${esc(f.thumb)}" alt="" loading="lazy"></button>`).join('')}</div>` : ''}
         </div>
         <div class="row">
-          <button class="btn" data-act="savecard" data-i="${i}">Save</button>
+          <button class="btn" data-act="savecard" data-i="${i}">${t('Save')}</button>
           <button class="ghost sm" data-act="pausecard" data-i="${i}">${s?.susp ? 'Resume' : 'Pause'}</button>
-          ${visible().some(x => x.id !== m.id) ? `<button class="ghost sm" data-act="movecard">Move to…</button>` : ''}
-          <button class="ghost sm" data-act="delcard" data-i="${i}">Delete</button>
+          ${visible().some(x => x.id !== m.id) ? `<button class="ghost sm" data-act="movecard">${t('Move to…')}</button>` : ''}
+          <button class="ghost sm" data-act="delcard" data-i="${i}">${t('Delete')}</button>
         </div>
       </div>`;
     }).join('')}</div>
@@ -1490,20 +1490,20 @@ function editView(id) {
       ? `<p class="lede">Showing the first ${EDIT_ROWS} of ${m.cards.length}. Filter to reach the rest.</p>` : ''}
     ${view.sel?.length ? `<div class="row wrap bulk">
       <b>${view.sel.length} selected</b>
-      <button class="ghost sm" data-act="bulkdrill">Drill these</button>
-      <button class="ghost sm" data-act="bulkpause">Pause</button>
-      <button class="ghost sm" data-act="bulkresume">Resume</button>
-      <button class="ghost sm" data-act="bulkdelete">Delete</button>
-      <button class="ghost sm" data-act="bulkclear">Clear</button>
+      <button class="ghost sm" data-act="bulkdrill">${t('Drill these')}</button>
+      <button class="ghost sm" data-act="bulkpause">${t('Pause')}</button>
+      <button class="ghost sm" data-act="bulkresume">${t('Resume')}</button>
+      <button class="ghost sm" data-act="bulkdelete">${t('Delete')}</button>
+      <button class="ghost sm" data-act="bulkclear">${t('Clear')}</button>
     </div>` : ''}
-    ${view.cq ? `<button class="ghost sm" data-act="split">Move the filtered cards into a new module</button>` : ''}
+    ${view.cq ? `<button class="ghost sm" data-act="split">${t('Move the filtered cards into a new module')}</button>` : ''}
     <div class="row wrap">
-      <button class="btn" data-act="addcard" data-id="${esc(m.id)}">＋ Add a card</button>
-      <button class="btn ghost" data-act="share" data-id="${esc(m.id)}">Share link</button>
-      <button class="btn ghost" data-act="exportmodule" data-id="${esc(m.id)}">Export JSON</button>
-      <button class="btn ghost" data-act="exporttsv" data-id="${esc(m.id)}">Export TSV</button>
-      <button class="btn ghost" data-act="print">Print sheet</button>
-      <button class="btn ghost" data-act="printcards" data-id="${esc(m.id)}">Print cut-outs</button>
+      <button class="btn" data-act="addcard" data-id="${esc(m.id)}">＋ ${t('Add a card')}</button>
+      <button class="btn ghost" data-act="share" data-id="${esc(m.id)}">${t('Share link')}</button>
+      <button class="btn ghost" data-act="exportmodule" data-id="${esc(m.id)}">${t('Export JSON')}</button>
+      <button class="btn ghost" data-act="exporttsv" data-id="${esc(m.id)}">${t('Export TSV')}</button>
+      <button class="btn ghost" data-act="print">${t('Print sheet')}</button>
+      <button class="btn ghost" data-act="printcards" data-id="${esc(m.id)}">${t('Print cut-outs')}</button>
     </div>
     <p id="err" class="err"></p>`;
   // Card fields write through as you type and persist on blur, so tapping another card —
@@ -3313,7 +3313,7 @@ const ACT = {
     const drills = notDuel(eligibleGames(m, 'drill')), plays = notDuel(eligibleGames(m, 'play'));
     let pool = (Math.random() < 0.65 ? drills : plays);
     if (!pool.length) pool = drills.length ? drills : plays;
-    if (!pool.length) return toast('Nothing here suits an exercise yet.');
+    if (!pool.length) return toast(t('Nothing here suits an exercise yet.'));
     const fresh = pool.filter(([k]) => k !== opt().lastGame);
     const [key] = (fresh.length ? fresh : pool)[Math.floor(Math.random() * (fresh.length || pool.length))];
     opt().lastGame = key;
@@ -3322,7 +3322,7 @@ const ACT = {
   },
   profile: el => { state.active = el.dataset.name; save(); render(); },
   addprofile: async () => {
-    const n = ((await askText('Name for the new learner?')) || '').slice(0, 24);
+    const n = ((await askText(t('Name for the new learner?'))) || '').slice(0, 24);
     if (!n || state.profiles[n]) return;
     const taken = new Set(Object.values(state.profiles).map(p => p.opts?.avatar));
     state.profiles[n] = newProfile(AVATARS.find(a => !taken.has(a)) || AVATARS[0]);
@@ -3334,7 +3334,7 @@ const ACT = {
   accent: el => { setOpt({ accent: el.dataset.c }); render(); },
   rename: async () => {
     const from = state.active;
-    const to = ((await askText('New name for this learner?', from)) || '').slice(0, 24);
+    const to = ((await askText(t('New name for this learner?'), from)) || '').slice(0, 24);
     if (!to || to === from) return;
     if (state.profiles[to]) return showErr(new Error(`There is already a learner called ${to}.`));
     // Rebuild in place so the profile keeps its position in the list, and its history.
@@ -3443,7 +3443,7 @@ const ACT = {
     const draw = mod => pickSession(mod.cards, P().srs, mod.id, { size: half, newPerSession: 3 })
       .map(c => ({ ...c, mid: mod.id, from: mod.title }));
     const cards = shuffle([...draw(m), ...draw(other)]);
-    if (!cards.length) return toast('Nothing to study in those two yet.');
+    if (!cards.length) return toast(t('Nothing to study in those two yet.'));
     launch({ id: 'mix', title: `${m.title} + ${other.title}`, cards }, 'recall', cards, cards, false,
       () => ACT.mixwith(el));
   },
@@ -3487,7 +3487,7 @@ const ACT = {
     });
     if (!n) return;
     const cards = examSet(mods, P().srs, +n);
-    if (cards.length < 2) return toast('Not enough cards for an exam yet.');
+    if (cards.length < 2) return toast(t('Not enough cards for an exam yet.'));
     launch({ id: 'exam', title: where === '*' ? 'Mock exam' : `Mock exam — ${where}` , cards },
       'recall', cards, cards, true, ACT.mockexam);
   },
@@ -3508,7 +3508,7 @@ const ACT = {
     try {
       const mine = editable(id);
       const target = mine.cards.find(x => cardKey(id, x) === cardKey(id, card));
-      if (!target) return toast('That card is not editable from here.');
+      if (!target) return toast(t('That card is not editable from here.'));
       if (text) target.note = text; else delete target.note;
       card.note = text;                      // so the results screen shows it straight away
       await touch(mine);
@@ -3535,8 +3535,8 @@ const ACT = {
     const cards = [...new Map((session.missed || []).map(c => [c.front, c])).values()];
     if (!cards.length) return;
     navigator.clipboard?.writeText(sharpenPrompt(cards, session.module.title))
-      .then(() => say('Copied — paste it to Claude, then import the reply.'))
-      .catch(() => toast('The clipboard said no. Try again after tapping the page.'));
+      .then(() => say(t('Copied — paste it to Claude, then import the reply.')))
+      .catch(() => toast(t('The clipboard said no. Try again after tapping the page.')));
   },
   drillmissed: () => {
     const cards = [...new Map((session.missed || []).map(c => [c.front, c])).values()];
@@ -3578,7 +3578,7 @@ const ACT = {
     try {
       // Nowhere sensible to put it yet: make somewhere, with this card as its first.
       if (id === '+') {
-        const title = ((await askText('Name the new module')) || '').trim();
+        const title = ((await askText(t('Name the new module'))) || '').trim();
         if (!title) return;
         const made = addCustom({ title, cards: [{ front, back, ...(note ? { note } : {}), ...(image ? { image } : {}) }] });
         opt().lastAdd = made.id;
@@ -3617,7 +3617,7 @@ const ACT = {
       .filter(t => t.fresh.length)
       .map(t => ({ ...t, shared: incoming.cards.length - t.fresh.length }))
       .sort((a, b) => b.shared - a.shared || a.m.title.localeCompare(b.m.title));
-    if (!targets.length) return say('Every one of those cards is already in your library.');
+    if (!targets.length) return say(t('Every one of those cards is already in your library.'));
     const id = await dialog({
       title: `Add the new cards from “${incoming.title}” to which module?`,
       choices: targets.map(t => ({ value: t.m.id,
@@ -3655,7 +3655,7 @@ const ACT = {
     const text = growPrompt(m, +n);
     try {
       await navigator.clipboard.writeText(text);
-      say('Prompt copied — paste it into Claude, then bring the answer back through Import.');
+      say(t('Prompt copied — paste it into Claude, then bring the answer back through Import.'));
     } catch {
       // No clipboard permission (or no clipboard): show it so it can still be selected.
       await dialog({ title: text, ok: 'Close' });
@@ -3682,7 +3682,7 @@ const ACT = {
       say(`Added ${fresh.length} new card${fresh.length === 1 ? '' : 's'}.`);
     } catch (e) { showErr(e); }
   },
-  copyprompt: () => navigator.clipboard?.writeText(PROMPT).then(() => say('Prompt copied — paste it at the end of a Claude conversation.')),
+  copyprompt: () => navigator.clipboard?.writeText(PROMPT).then(() => say(t('Prompt copied — paste it at the end of a Claude conversation.'))),
   // The whole library as one readable document — for keeping, for printing, and for pasting
   // back into a conversation when you want more of it.
   // Fifty sittings, one line each — enough to make your own charts from without asking the
@@ -3691,13 +3691,13 @@ const ACT = {
   remindme: async () => {
     // Default to the part of the day this learner actually answers best in, once that is known.
     const best = bestTime(P().stats.sessions || [])?.best.name;
-    const t = ((await askText('Remind at what time? (24h, like 17:30)',
+    const at = ((await askText(t('Remind at what time? (24h, like 17:30)'),
       { morning: '08:00', afternoon: '14:00', evening: '19:00', 'late at night': '22:00' }[best] || '17:00')) || '').trim();
-    if (!t) return;
-    const ics = reminderIcs(t, location.origin + location.pathname);
-    if (!ics) return toast('That is not a time — try 17:30.');
+    if (!at) return;
+    const ics = reminderIcs(at, location.origin + location.pathname);
+    if (!ics) return toast(t('That is not a time — try 17:30.'));
     download('learning-pit-reminder.ics', ics, 'text/calendar');
-    say('Open the file and your calendar takes it from there.');
+    say(t('Open the file and your calendar takes it from there.'));
   },
   exporthistory: () => {
     const rows = [['when', 'module', 'exercise', 'right', 'wrong', 'seconds']];
@@ -3719,7 +3719,7 @@ ${toMarkdown(visible())}`;
     save({ sync: false });
   },
   signin: async () => {
-    try { await auth(true); renderBar(); say('Syncing…'); await sync(); renderBar(); say('Synced.'); }
+    try { await auth(true); renderBar(); say(t('Syncing…')); await sync(); renderBar(); say(t('Synced.')); }
     catch (e) { showErr(e); }
   },
   wipe: async () => {
@@ -3735,7 +3735,7 @@ ${toMarkdown(visible())}`;
   },
   signout: async () => {
     // Hand the token back rather than just forgetting it — this is a family device.
-    if (!await askYes('Stop syncing on this device? Progress stays here and in Drive.', 'Sign out')) return;
+    if (!await askYes(t('Stop syncing on this device? Progress stays here and in Drive.'), 'Sign out')) return;
     try { if (token) google.accounts.oauth2.revoke(token, () => {}); } catch { /* offline */ }
     token = null;
     account = null;
@@ -3744,10 +3744,10 @@ ${toMarkdown(visible())}`;
     syncError = '';
     localStorage.removeItem('pit.wasSignedIn');
     render();
-    say('Signed out.');
+    say(t('Signed out.'));
   },
   sync: async () => {
-    try { say('Syncing…'); await sync(); syncError = ''; render(); say('Synced.'); }
+    try { say(t('Syncing…')); await sync(); syncError = ''; render(); say(t('Synced.')); }
     catch (e) { syncError = e.message; renderBar(); toast('Sync failed: ' + e.message); }
   },
 
@@ -3781,9 +3781,9 @@ ${toMarkdown(visible())}`;
   findpic: async () => {
     const m = editable(view.id), c = m?.cards[view.editing];
     if (!c) return;
-    const q = ((await askText('Find a picture of…', c.back.length <= 30 ? c.back : c.front.slice(0, 30))) || '').trim();
+    const q = ((await askText(t('Find a picture of…'), c.back.length <= 30 ? c.back : c.front.slice(0, 30))) || '').trim();
     if (!q) return;
-    say('Searching…');
+    say(t('Searching…'));
     try {
       const u = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&generator=search'
         + `&gsrnamespace=6&gsrlimit=8&gsrsearch=${encodeURIComponent('filetype:bitmap ' + q)}`
@@ -3845,7 +3845,7 @@ ${toMarkdown(visible())}`;
   bulkresume: () => setPausedForSelection(false),
   bulkdelete: async () => {
     const m = editable(view.id), sel = view.sel || [];
-    if (m.cards.length - sel.length < 1) return toast('A module needs at least one card.');
+    if (m.cards.length - sel.length < 1) return toast(t('A module needs at least one card.'));
     if (!await askYes(`Delete ${sel.length} card${sel.length === 1 ? '' : 's'}?`)) return;
     const doomed = new Set(sel.map(i => m.cards[i]));
     const before = m.cards.slice();
@@ -3864,7 +3864,7 @@ ${toMarkdown(visible())}`;
   merge: async el => {
     const from = modules.find(x => x.id === el.dataset.id);
     const others = modules.filter(m => m.id !== from.id);
-    if (!others.length) return toast('There is nothing to merge into yet.');
+    if (!others.length) return toast(t('There is nothing to merge into yet.'));
     const intoId = await dialog({
       title: `Move every card from “${from.title}” into…`,
       choices: others.map(m => ({ value: m.id, label: `${m.icon || '◈'} ${m.title} (${m.cards.length})` })),
@@ -3892,8 +3892,8 @@ ${toMarkdown(visible())}`;
     const m = editable(view.id);
     const q = norm(view.cq || '');
     const matching = m.cards.filter(c => q && norm(c.front + ' ' + c.back).includes(q));
-    if (!matching.length) return toast('Filter to the cards you want to split out first.');
-    if (matching.length === m.cards.length) return toast('That is every card — nothing to split.');
+    if (!matching.length) return toast(t('Filter to the cards you want to split out first.'));
+    if (matching.length === m.cards.length) return toast(t('That is every card — nothing to split.'));
     const title = await askText(`Move ${matching.length} matching cards into a new module called…`, view.cq);
     if (!title) return;
     const fresh = validateModule({ title, tags: m.tags, icon: m.icon, cards: matching });
@@ -3981,7 +3981,7 @@ ${toMarkdown(visible())}`;
     touch(m);
   },
   newmodule: async () => {
-    const title = (await askText('What is the module called?')) || '';
+    const title = (await askText(t('What is the module called?'))) || '';
     if (!title) return;
     const m = validateModule({ title, cards: [{ front: 'First question', back: 'Answer' }] });
     m.savedAt = Date.now();
@@ -3992,7 +3992,7 @@ ${toMarkdown(visible())}`;
   recap: async () => {
     const text = recapText();
     if (navigator.share) {
-      try { await navigator.share({ title: 'Learning Pit', text }); return say('Shared.'); }
+      try { await navigator.share({ title: 'Learning Pit', text }); return say(t('Shared.')); }
       catch { /* the sheet was dismissed — fall through to the clipboard */ }
     }
     try { await navigator.clipboard.writeText(text); say('Copied: ' + text); }
@@ -4021,7 +4021,7 @@ ${toMarkdown(visible())}`;
   tryvoice: () => speak('Which planet is the hottest?', true),
   install: async () => {
     if (installPrompt) { installPrompt.prompt(); installPrompt = null; return; }
-    if (matchMedia('(display-mode: standalone)').matches) return toast('Already installed.');
+    if (matchMedia('(display-mode: standalone)').matches) return toast(t('Already installed.'));
     // iOS has no install prompt, so say where the button actually is.
     const ios = /iPad|iPhone|iPod/.test(navigator.userAgent)
       || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -4049,7 +4049,7 @@ ${toMarkdown(visible())}`;
     const now = deadlines()[id] || '';
     const answer = await dialog({ title: 'Learn it all by when? (YYYY-MM-DD, or empty to clear)', value: now, ok: 'Set' });
     if (answer === null) return;
-    if (answer && !/^\d{4}-\d{2}-\d{2}$/.test(answer)) return toast('Use a date like 2026-08-24.');
+    if (answer && !/^\d{4}-\d{2}-\d{2}$/.test(answer)) return toast(t('Use a date like 2026-08-24.'));
     if (answer) deadlines()[id] = answer; else delete deadlines()[id];
     setOpt({ deadlines: deadlines() });      // stamped, so sync knows this device set it
     render();
@@ -4065,7 +4065,7 @@ ${toMarkdown(visible())}`;
     for (const m of visible()) {
       for (const c of m.cards) if (wanted.has(c.front)) cards.push({ ...c, mid: m.id, from: m.title });
     }
-    if (cards.length < 2) return toast('One of those cards is gone.');
+    if (cards.length < 2) return toast(t('One of those cards is gone.'));
     const drill = shuffle([...cards, ...cards.map(c => ({ ...c }))]);
     launch({ id: 'pair', title: `${el.dataset.a} vs ${el.dataset.b}`, cards: drill },
       'recall', drill, cards, false, null);
@@ -4140,7 +4140,7 @@ ${toMarkdown(visible())}`;
     const best = visible()
       .map(m => ({ m, n: counts(m.cards, p.srs, m.id).fresh }))
       .sort((a, b) => b.n - a.n)[0];
-    if (!best?.n) return toast('Every card has been seen — import or write a new module.');
+    if (!best?.n) return toast(t('Every card has been seen — import or write a new module.'));
     startGame(best.m.id, 'recall');
   },
   pausekey: el => {
@@ -4150,7 +4150,7 @@ ${toMarkdown(visible())}`;
     p.srs[k].t = Date.now();
     save();
     render();
-    say('Paused. Resume it from the module editor.');
+    say(t('Paused. Resume it from the module editor.'));
   },
 
   undo: () => {
@@ -4164,7 +4164,7 @@ ${toMarkdown(visible())}`;
     s.flipped = false; s.opts = null; s.picked = null; s.verdict = null; s.guess = ''; s.sub = null; s.peek = false;
     save();
     render();
-    say('Undone.');
+    say(t('Undone.'));
   },
 
   // in-session
@@ -4263,7 +4263,7 @@ ${toMarkdown(visible())}`;
     if (s.queue.length < 24) s.queue.push(c); else s.done++;   // seen later, not judged now
     s.verdict = null; s.guess = ''; s.blank = null; s.peek = false; s.sub = null;
     render();
-    say('Skipped.');
+    say(t('Skipped.'));
   },
   checkblank: () => {
     const s = session;
@@ -4435,7 +4435,7 @@ ${toMarkdown(visible())}`;
     s.queue = s.queue.filter(x => x !== c);     // a repeat already queued goes with it
     s.done++;
     clearCardState(s);
-    toast('Back tomorrow.');
+    toast(t('Back tomorrow.'));
     render();
   },
   // Order it: tap the steps into place; the last one checks itself when it lands right.
@@ -4471,7 +4471,7 @@ ${toMarkdown(visible())}`;
     s.queue.shift();
     s.done++;
     clearCardState(s);
-    toast('Parked — let it back in from Edit cards.');
+    toast(t('Parked — let it back in from Edit cards.'));
     render();
   },
   // Fix: the editor, opened on this very card; going back lands in the session again.
@@ -4484,7 +4484,7 @@ ${toMarkdown(visible())}`;
     try {
       const mine = editable(id);
       const i = mine.cards.findIndex(x => cardKey(id, x) === cardKey(id, c));
-      if (i < 0) return toast('That card cannot be edited from here.');
+      if (i < 0) return toast(t('That card cannot be edited from here.'));
       await loadModules();
       go({ name: 'edit', id, editing: i });
     } catch (e) { showErr(e); }
@@ -4633,7 +4633,7 @@ if (opt().kid) document.querySelector('meta[name="app-whatsnew"]')?.remove();
     try {
       view = { name: 'import', pending: parseImport(JSON.stringify(await unpackModule(shared[1]))) };
     } catch (e) {
-      toast('That shared link could not be read.');
+      toast(t('That shared link could not be read.'));
     }
   }
 
@@ -4670,7 +4670,7 @@ if (opt().kid) document.querySelector('meta[name="app-whatsnew"]')?.remove();
   if (owed && state.settings.nudged !== today()) {
     state.settings.nudged = today();
     save({ sync: false });
-    setTimeout(() => toast('This is the only copy of your progress.', 'Back it up', ACT.export), 1200);
+    setTimeout(() => toast(t('This is the only copy of your progress.'), 'Back it up', ACT.export), 1200);
   }
 
   // Ask the browser not to evict a year of review history when storage runs low.
@@ -4701,7 +4701,7 @@ if (opt().kid) document.querySelector('meta[name="app-whatsnew"]')?.remove();
         const w = reg.installing;
         w?.addEventListener('statechange', () => {
           if (w.state === 'installed' && navigator.serviceWorker.controller) {
-            toast('A new version is ready.', 'Reload', () => location.reload());
+            toast(t('A new version is ready.'), 'Reload', () => location.reload());
           }
         });
       });
