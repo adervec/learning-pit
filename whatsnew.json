@@ -1,5 +1,12 @@
 [
   {
+    "date": "2026-11-16",
+    "items": [
+      "Two new modules: The Human Body, and Erste Wörter — twenty-four first words of German, read by a German voice.",
+      "The last corners of the app are translated too: error messages, hints and screen-reader labels."
+    ]
+  },
+  {
     "date": "2026-11-15",
     "items": [
       "The whole app now speaks sixteen more languages, chosen in Settings: French, Spanish, Portuguese, Italian, Croatian, German, Chinese, Ukrainian, Esperanto, Swahili, Hindi, Bengali, Indonesian, Urdu, Persian and Arabic. They are machine translated, and the app says so. The cards themselves stay in the language they were written in.",

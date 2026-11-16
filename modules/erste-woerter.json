@@ -1,0 +1,121 @@
+{
+  "id": "erste-woerter",
+  "title": "Erste Wörter",
+  "description": "Twenty-four first words of German, read by a German voice.",
+  "icon": "🥨",
+  "tags": [
+    "language",
+    "words"
+  ],
+  "lang": "de",
+  "cards": [
+    {
+      "front": "In German: hello",
+      "back": "Hallo"
+    },
+    {
+      "front": "In German: goodbye",
+      "back": "Tschüss",
+      "alt": [
+        "auf Wiedersehen",
+        "tschüs"
+      ]
+    },
+    {
+      "front": "In German: please",
+      "back": "bitte"
+    },
+    {
+      "front": "In German: thank you",
+      "back": "danke"
+    },
+    {
+      "front": "In German: yes",
+      "back": "ja"
+    },
+    {
+      "front": "In German: no",
+      "back": "nein"
+    },
+    {
+      "front": "In German: the dog",
+      "back": "der Hund",
+      "note": "Every German noun has a gender — learn the word with its der, die or das."
+    },
+    {
+      "front": "In German: the cat",
+      "back": "die Katze"
+    },
+    {
+      "front": "In German: the house",
+      "back": "das Haus"
+    },
+    {
+      "front": "In German: the water",
+      "back": "das Wasser"
+    },
+    {
+      "front": "In German: the bread",
+      "back": "das Brot"
+    },
+    {
+      "front": "In German: the milk",
+      "back": "die Milch"
+    },
+    {
+      "front": "In German: the apple",
+      "back": "der Apfel"
+    },
+    {
+      "front": "In German: the book",
+      "back": "das Buch"
+    },
+    {
+      "front": "In German: the school",
+      "back": "die Schule"
+    },
+    {
+      "front": "In German: the friend",
+      "back": "der Freund",
+      "alt": [
+        "die Freundin"
+      ],
+      "note": "Die Freundin if the friend is a girl or a woman."
+    },
+    {
+      "front": "In German: the mother",
+      "back": "die Mutter"
+    },
+    {
+      "front": "In German: the father",
+      "back": "der Vater"
+    },
+    {
+      "front": "In German: the sun",
+      "back": "die Sonne"
+    },
+    {
+      "front": "In German: the moon",
+      "back": "der Mond"
+    },
+    {
+      "front": "In German: big",
+      "back": "groß",
+      "alt": [
+        "gross"
+      ]
+    },
+    {
+      "front": "In German: small",
+      "back": "klein"
+    },
+    {
+      "front": "In German: good",
+      "back": "gut"
+    },
+    {
+      "front": "In German: red",
+      "back": "rot"
+    }
+  ]
+}

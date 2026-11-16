@@ -232,7 +232,7 @@ async function fetchText(url) {
   const r = await fetch(url);
   if (!r.ok) throw new Error('HTTP ' + r.status);
   const text = await r.text();
-  if (text.length > 2_000_000) throw new Error('That file is too big to import (2 MB max).');
+  if (text.length > 2_000_000) throw new Error(t('That file is too big to import (2 MB max).'));
   return text;
 }
 
@@ -278,8 +278,8 @@ const accountPic = () => /^(https:\/\/|data:image\/)/.test(account?.picture || '
 
 function auth(interactive) {
   if (token && Date.now() < tokenExp - 60000) return Promise.resolve(token);
-  if (!clientId()) return Promise.reject(new Error('Add a Google client ID in Settings first.'));
-  if (!window.google?.accounts?.oauth2) return Promise.reject(new Error('Google sign-in unavailable (offline?).'));
+  if (!clientId()) return Promise.reject(new Error(t('Add a Google client ID in Settings first.')));
+  if (!window.google?.accounts?.oauth2) return Promise.reject(new Error(t('Google sign-in unavailable (offline?).')));
   tokenClient ||= google.accounts.oauth2.initTokenClient({ client_id: clientId(), scope: SCOPE, callback: () => {} });
   return new Promise((res, rej) => {
     tokenClient.callback = r => {
@@ -823,8 +823,7 @@ function quickView() {
   app.innerHTML = `
     <button class="back" data-act="back">‹ ${t('back')}</button>
     <h1>${t('Quick card')}</h1>
-    <p class="lede">Straight into a module you already study. It joins the new pile and comes
-    round on schedule like any other card.</p>
+    <p class="lede">${t('Straight into a module you already study. It joins the new pile and comes round on schedule like any other card.')}</p>
     <form id="quickf" class="stack">
       <label class="field">Into
         <select id="qmod">${modules.map(m => `<option value="${esc(m.id)}" ${m.id === target ? 'selected' : ''}>${
@@ -832,17 +831,17 @@ function quickView() {
           <option value="+">＋ ${t('a new module…')}</option></select>
       </label>
       <label class="field">Question
-        <textarea id="qfront" rows="2" placeholder="What are you asking yourself?"></textarea>
+        <textarea id="qfront" rows="2" placeholder="${esc(t('What are you asking yourself?'))}"></textarea>
       </label>
       <label class="field">Answer
-        <textarea id="qback" rows="2" placeholder="The thing you want to come back to you"></textarea>
+        <textarea id="qback" rows="2" placeholder="${esc(t('The thing you want to come back to you'))}"></textarea>
       </label>
       <label class="field">${t('Why')} <small class="dim">— ${t('optional, shown after you answer')}</small>
         <textarea id="qnote" rows="2"></textarea>
       </label>
       <div class="row picrow">
         ${view.pic ? `<img class="thumb" src="${esc(view.pic)}" alt="">` : ''}
-        <label class="btn ghost">${view.pic ? 'Replace picture' : 'Add a picture'}
+        <label class="btn ghost">${view.pic ? t('Replace picture') : t('Add a picture')}
           <input class="sr" type="file" accept="image/*" id="qpic"></label>
         ${view.pic ? `<button class="ghost sm" type="button" data-act="quicknopic">${t('Remove')}</button>` : ''}
       </div>
@@ -1187,17 +1186,17 @@ function importView() {
         <button class="btn ghost" data-act="import">${t('Start over')}</button>
       </div>`
     : `
-      <p class="lede">Paste anything: JSON, a markdown table, <code>Q:</code>/<code>A:</code> lines,
-      a bullet glossary, or <code>${t('front :: back')}</code> ${t('per line.')}</p>
-      <textarea id="paste" rows="9" spellcheck="false" aria-label="Paste cards here"
-        placeholder="Paste Claude's answer here…"></textarea>
+      <p class="lede">${t('Paste anything: JSON, a markdown table, {qa} lines, a bullet glossary, or {pair} per line.',
+        { qa: '<code>Q:</code>/<code>A:</code>', pair: '<code>front :: back</code>' })}</p>
+      <textarea id="paste" rows="9" spellcheck="false" aria-label="${esc(t('Paste cards here'))}"
+        placeholder="${esc(t("Paste Claude's answer here…"))}"></textarea>
       <div class="row wrap">
         <button class="btn" data-act="paste">${t('Read it')}</button>
         ${navigator.clipboard?.readText ? `<button class="btn ghost" data-act="clip">${t('Paste from clipboard')}</button>` : ''}
         <label class="btn ghost">${t('Open file…')}<input class="sr" type="file" accept=".json,.md,.txt,.csv,.tsv,text/*" multiple id="file"></label>
       </div>
       <div class="row">
-        <input id="url" aria-label="URL of a module to fetch" placeholder="…or a URL to a module JSON">
+        <input id="url" aria-label="${esc(t('URL of a module to fetch'))}" placeholder="…or a URL to a module JSON">
         <button class="btn ghost" data-act="fetchurl">${t('Fetch')}</button>
       </div>
       <p class="lede dim">Drop a file anywhere on this screen. Not sure what to ask Claude for?
@@ -1278,7 +1277,7 @@ function shrinkImage(file, max = 480) {
       const webp = canvas.toDataURL('image/webp', 0.8);
       resolve(webp.startsWith('data:image/webp') ? webp : canvas.toDataURL('image/jpeg', 0.82));
     };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('That file is not an image this browser can read.')); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error(t('That file is not an image this browser can read.'))); };
     img.src = url;
   });
 }
@@ -1287,7 +1286,7 @@ function shrinkImage(file, max = 480) {
 // clip small enough to live in localStorage and ride along in a sync.
 let recorder = null;
 function recordClip(onDone, onFail) {
-  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return onFail(new Error('This browser cannot record.'));
+  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return onFail(new Error(t('This browser cannot record.')));
   navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
     const chunks = [];
     recorder = new MediaRecorder(stream);
@@ -1298,7 +1297,7 @@ function recordClip(onDone, onFail) {
       const blob = new Blob(chunks, { type: chunks[0]?.type || 'audio/webm' });
       const reader = new FileReader();
       reader.onload = () => onDone(reader.result);
-      reader.onerror = () => onFail(new Error('Could not read the recording.'));
+      reader.onerror = () => onFail(new Error(t('Could not read the recording.')));
       reader.readAsDataURL(blob);
     };
     recorder.start();
@@ -1371,7 +1370,7 @@ function browseView(id) {
       <div class="readside">
         <small class="dim">${cardState(srs[cardKey(m.id, c)])}</small>
         ${c.audio || opt().tts ? `<button class="ghost sm" data-act="readaloud" data-i="${i}">🔊</button>` : ''}
-        ${opt().kid ? '' : `<button class="ghost sm" data-act="editfrom" data-i="${i}" aria-label="Edit this card">✎</button>`}
+        ${opt().kid ? '' : `<button class="ghost sm" data-act="editfrom" data-i="${i}" aria-label="${esc(t('Edit this card'))}">✎</button>`}
       </div>
     </div>`).join('')}</div>`;
 }
@@ -1436,7 +1435,7 @@ function editView(id) {
     </div>
     ${auditBanner(m)}
     <h2>${m.cards.length} cards</h2>
-    ${m.cards.length > 12 ? `<input id="cardq" type="search" aria-label="Filter cards" placeholder="Filter cards" value="${esc(view.cq || '')}">` : ''}
+    ${m.cards.length > 12 ? `<input id="cardq" type="search" aria-label="${esc(t('Filter cards'))}" placeholder="${esc(t('Filter cards'))}" value="${esc(view.cq || '')}">` : ''}
     <div class="list">${m.cards.map((c, i) => {
       if (view.cq && i !== editing && !norm(c.front + ' ' + c.back).includes(norm(view.cq))) return '';
       // ponytail: a flat cap instead of virtual scrolling. Filter to reach the rest.
@@ -1444,7 +1443,7 @@ function editView(id) {
       const s = srs[cardKey(m.id, c)];
       if (i !== editing) return `<div class="li card-row ${s?.susp ? 'paused' : ''} ${view.sel?.includes(i) ? 'chosen' : ''}">
         <input type="checkbox" class="pick" data-pick="${i}" ${view.sel?.includes(i) ? 'checked' : ''}
-          aria-label="Select this card">
+          aria-label="${esc(t('Select this card'))}">
         <button class="rowbtn" data-act="editcard" data-i="${i}">
           <span>${esc(c.front)}</span><em>${esc(c.back)}</em></button>
         <small class="dim state">${cardState(s)}</small>
@@ -1467,14 +1466,14 @@ function editView(id) {
         <div class="stack">${t('Picture')} <small class="dim">(${t('shown with the question')})</small>
           <div class="row wrap picrow">
             ${c.image ? `<img class="thumb" src="${esc(c.image)}" alt="">` : ''}
-            <label class="btn ghost">${c.image ? 'Replace' : 'Add a picture'}
+            <label class="btn ghost">${c.image ? t('Replace') : t('Add a picture')}
               <input class="sr" type="file" accept="image/*" id="cardpic"></label>
             ${navigator.onLine ? `<button class="ghost sm" data-act="findpic">${t('Find one')}</button>` : ''}
             ${c.image ? `<button class="ghost sm" data-act="delpic">${t('Remove')}</button>` : ''}
           </div>
           ${view.found ? `<p class="lede small-note">${view.found.length
-            ? 'From Wikimedia Commons — tap one to use it. The card keeps a link to where it came from.'
-            : 'Nothing found for that — try another word.'}</p>
+            ? t('From Wikimedia Commons — tap one to use it. The card keeps a link to where it came from.')
+            : t('Nothing found for that — try another word.')}</p>
           <div class="pics found">${view.found.map((f, i) => `<button class="pictile" data-act="usepic" data-i="${i}"
             aria-label="${esc(f.title)}"><img class="cardimg" src="${esc(f.thumb)}" alt="" loading="lazy"></button>`).join('')}</div>` : ''}
         </div>
@@ -1559,9 +1558,9 @@ function editView(id) {
     el.addEventListener('change', e => {
       const f = e.target.dataset.field;
       const v = e.target.value.trim().slice(0, LIMITS[f]);
-      if (f === 'title' && !v) return showErr(new Error('A module needs a title.'));
+      if (f === 'title' && !v) return showErr(new Error(t('A module needs a title.')));
       if (f === 'lang') {
-        if (v && !/^[a-z]{2,3}(-[A-Za-z]{2,8})?$/.test(v)) return showErr(new Error('Use a tag like fr or de-AT.'));
+        if (v && !/^[a-z]{2,3}(-[A-Za-z]{2,8})?$/.test(v)) return showErr(new Error(t('Use a tag like fr or de-AT.')));
         m.lang = v || undefined;
       } else if (f === 'tags') {
         m.tags = [...new Set(v.toLowerCase().split(',').map(t => t.trim().slice(0, 32)).filter(Boolean))].slice(0, 12);
@@ -2121,7 +2120,7 @@ function settings() {
   document.getElementById('restore').addEventListener('change', async e => {
     try {
       const backup = JSON.parse(await e.target.files[0].text());
-      if (!backup || typeof backup !== 'object' || !backup.profiles) throw new Error('That is not a Learning Pit backup.');
+      if (!backup || typeof backup !== 'object' || !backup.profiles) throw new Error(t('That is not a Learning Pit backup.'));
       state = mergeState(state, backup);
       save();
       await loadModules();
@@ -2150,8 +2149,7 @@ async function usageLine() {
     .sort((a, b) => b.kb - a.kb)
     .slice(0, 5);
   if (!weighed.length) return;
-  box.innerHTML = `<p class="lede small-note">The heaviest modules — pictures and recordings, usually.
-    They are kept apart from your progress, so they cannot crowd it out:</p>
+  box.innerHTML = `<p class="lede small-note">${t('The heaviest modules — pictures and recordings, usually. They are kept apart from your progress, so they cannot crowd it out:')}</p>
     <div class="list">${weighed.map(x => `<div class="li">
       <button class="rowbtn" data-act="edit" data-id="${esc(x.m.id)}">
         <span>${esc(x.m.title)}</span><em>${x.kb} KB</em></button>
@@ -2250,7 +2248,7 @@ function listen(onResult, lang) {
     recog = null;
     onResult([...e.results[0]].map(a => a.transcript));
   };
-  r.onerror = e => { recog = null; say(e.error === 'not-allowed' ? 'Microphone blocked.' : 'Did not catch that.'); render(); };
+  r.onerror = e => { recog = null; say(e.error === 'not-allowed' ? t('Microphone blocked.') : t('Did not catch that.')); render(); };
   r.onend = () => { if (recog === r) { recog = null; render(); } };
   try { r.start(); } catch { recog = null; }
   return r;
@@ -2333,7 +2331,7 @@ function grade(card, g) {
   if (g !== 'again') p.stats.hits[today()] = (p.stats.hits[today()] || 0) + 1;
   if (opt().goal && done === opt().goal) {          // exactly on the goal, so it fires once
     blip('win');
-    toast(opt().kid ? 'Goal reached! ⭐' : `Daily goal reached — ${done} cards.`);
+    toast(opt().kid ? t('Goal reached!') + ' ⭐' : t('Daily goal reached — {n} cards.', { n: done }));
   }
   // A forgiven day is worth saying out loud, or the streak looks like it miscounted.
   const restedBefore = p.stats.rested;
@@ -2349,7 +2347,7 @@ function grade(card, g) {
 
 const mic = () => SpeechRec
   ? `<button type="button" class="micbtn ${recog ? 'on' : ''}" data-act="mic"
-      aria-label="${recog ? 'Listening — tap to stop' : 'Speak your answer'}">${recog ? '◉' : '🎤'}</button>`
+      aria-label="${esc(recog ? t('Listening — tap to stop') : t('Speak your answer'))}">${recog ? '◉' : '🎤'}</button>`
   : '';
 
 // A slate to write on: the word in faint outline once it has been shown, and whatever the
@@ -2466,13 +2464,13 @@ const GAMES = {
       app.innerHTML = `
         ${progress()}
         <div class="pit">
-          <button class="card ${s.flipped ? 'flipped' : ''}" data-act="flip" aria-label="Flip card">
+          <button class="card ${s.flipped ? 'flipped' : ''}" data-act="flip" aria-label="${esc(t('Flip card'))}">
             <div class="face">${pic(c)}${fmt(s.flipped ? c.back : c.front)}
               ${!s.flipped && (c.hint || s.peek) ? `<small class="hint">${esc(c.hint || maskHint(c.back))}</small>` : ''}
               ${s.flipped ? note(c) : ''}${from(c)}</div>
             <span class="tap">${s.flipped ? '' : 'tap to reveal'}</span>
           </button>
-          <button class="speak" data-act="speak" aria-label="Read aloud">🔊</button>
+          <button class="speak" data-act="speak" aria-label="${esc(t('Read aloud'))}">🔊</button>
         </div>
         ${s.flipped ? (opt().kid ? `<div class="row grades kid">
           <button class="btn again" data-act="grade" data-g="again">👎 ${t('Not yet')}</button>
@@ -2509,7 +2507,7 @@ const GAMES = {
           <div class="pit small">
             <div class="card static"><div class="face">${pic(c)}${fmt(c.front)}
               <p class="answer">${fmt(c.back)}</p>${note(c)}${from(c)}</div></div>
-            <button class="speak" data-act="speak" aria-label="Read aloud">🔊</button>
+            <button class="speak" data-act="speak" aria-label="${esc(t('Read aloud'))}">🔊</button>
           </div>
           <div class="row">
             <button class="btn wide" data-act="studynext">${s.i + 1 === s.show.length ? t('Now ask me') : t('Next')}</button>
@@ -2520,11 +2518,11 @@ const GAMES = {
       app.innerHTML = `
         ${progress()}
         <div class="pit">
-          <button class="card ${s.flipped ? 'flipped' : ''}" data-act="flip" aria-label="Flip card">
+          <button class="card ${s.flipped ? 'flipped' : ''}" data-act="flip" aria-label="${esc(t('Flip card'))}">
             <div class="face">${pic(c)}${fmt(s.flipped ? c.back : c.front)}${s.flipped ? note(c) : ''}${from(c)}</div>
             <span class="tap">${s.flipped ? '' : 'tap to reveal'}</span>
           </button>
-          <button class="speak" data-act="speak" aria-label="Read aloud">🔊</button>
+          <button class="speak" data-act="speak" aria-label="${esc(t('Read aloud'))}">🔊</button>
         </div>
         ${s.flipped ? `<div class="row grades ${opt().kid ? 'kid' : ''}">
           <button class="btn again" data-act="grade" data-g="again">${opt().kid ? '👎 Not yet' : 'Again'}</button>
@@ -2546,7 +2544,7 @@ const GAMES = {
         ${progress()}
         <div class="pit small">
           <div class="card static"><div class="face">${pic(c)}${fmt(c.front)}${from(c)}</div></div>
-          <button class="speak" data-act="speak" aria-label="Read aloud">🔊</button>
+          <button class="speak" data-act="speak" aria-label="${esc(t('Read aloud'))}">🔊</button>
         </div>
         <div class="options">${s.opts.map((o, i) => {
           const cls = s.picked == null ? '' : o === c.back ? 'right' : (i === s.picked ? 'wrong' : 'faded');
@@ -2569,10 +2567,10 @@ const GAMES = {
         <div class="pit small">
           <div class="card static"><div class="face">${pic(c)}${fmt(c.front)}
             ${s.peek && !v ? `<small class="hint">${esc(maskHint(c.back))}</small>` : ''}${from(c)}</div></div>
-          <button class="speak" data-act="speak" aria-label="Read aloud">🔊</button>
+          <button class="speak" data-act="speak" aria-label="${esc(t('Read aloud'))}">🔊</button>
         </div>
         <form id="typef" class="row">
-          <input id="ans" placeholder="Your answer" value="${esc(s.guess)}" ${v ? 'disabled' : ''}
+          <input id="ans" placeholder="${esc(t('Your answer'))}" value="${esc(s.guess)}" ${v ? 'disabled' : ''}
             autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go">
           ${v ? '' : mic()}
           ${v ? '' : `<button class="btn" type="submit">${t('Check')}</button>`}
@@ -2607,15 +2605,14 @@ const GAMES = {
         <div class="pit small">
           <div class="card static"><div class="face">${pic(c)}${fmt(c.front)}
             ${!s.shown && c.hint ? `<small class="hint">${esc(c.hint)}</small>` : ''}${from(c)}</div></div>
-          <button class="speak" data-act="speak" aria-label="Read aloud">🔊</button>
+          <button class="speak" data-act="speak" aria-label="${esc(t('Read aloud'))}">🔊</button>
         </div>
         <textarea id="dump" rows="5" spellcheck="false" ${s.shown ? 'disabled' : ''}
-          placeholder="Everything you remember. Rough notes are fine.">${esc(s.said)}</textarea>
+          placeholder="${esc(t('Everything you remember. Rough notes are fine.'))}">${esc(s.said)}</textarea>
         ${s.shown ? `
           <div class="hits">${cov.points.map(p =>
             `<span class="hit ${cov.hit.includes(p) ? 'got' : 'miss'}">${esc(p)}</span>`).join('')}</div>
-          <p class="lede">${cov.hit.length} of ${cov.points.length} key words — the dim ones you did not say.
-            Grade the idea, not the wording.</p>
+          <p class="lede">${t('{hit} of {total} key words — the dim ones you did not say. Grade the idea, not the wording.', { hit: cov.hit.length, total: cov.points.length })}</p>
           <div class="verdict">${fmt(c.back)}${note(c)}</div>
           <div class="row grades">
             <button class="btn again" data-act="grade" data-g="again">${t('Missed it')}</button>
@@ -2625,7 +2622,7 @@ const GAMES = {
         : `<div class="row wrap">
             <button class="btn" data-act="reveal">${t('Check it')}</button>
             ${SpeechRec ? `<button type="button" class="micbtn ${recog ? 'on' : ''}" data-act="saymore"
-              aria-label="Dictate">🎤</button>` : ''}
+              aria-label="${esc(t('Dictate'))}">🎤</button>` : ''}
           </div>`}`;
       if (!s.shown) {
         const dump = document.getElementById('dump');
@@ -2657,14 +2654,14 @@ const GAMES = {
           </div></div>
         </div>
         <form id="typef" class="row">
-          <input id="ans" placeholder="Missing word" value="${esc(s.guess)}" ${v ? 'disabled' : ''}
+          <input id="ans" placeholder="${esc(t('Missing word'))}" value="${esc(s.guess)}" ${v ? 'disabled' : ''}
             autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go">
           ${v ? '' : mic()}
           ${v ? '' : `<button class="btn" type="submit">${t('Check')}</button>`}
         </form>
         ${v ? '' : `<button class="linky skip" data-act="skip">${t('skip this one')}</button>`}
         ${v ? `<div class="verdict ${v}">
-          <b>${v === 'wrong' ? 'It was' : 'Yes'} — ${esc(s.blank.answer)}</b>${note(c)}
+          <b>${v === 'wrong' ? t('It was {answer}', { answer: esc(s.blank.answer) }) : t('Yes') + ' — ' + esc(s.blank.answer)}</b>${note(c)}
         </div>
         <div class="row"><button class="btn wide" data-act="next">${t('Continue')}</button></div>` : ''}`;
       if (!v) document.getElementById('ans').focus();
@@ -2881,15 +2878,15 @@ const GAMES = {
           <div class="card static"><div class="face">${pic(c)}${fmt(c.front)}
             <span class="entry ${v || ''}">${esc(s.entry || '?')}</span>
           </div></div>
-          <button class="speak" data-act="speak" aria-label="Read aloud">🔊</button>
+          <button class="speak" data-act="speak" aria-label="${esc(t('Read aloud'))}">🔊</button>
         </div>
         ${v ? `<div class="verdict ${v}"><b>${v === 'wrong' ? 'It was ' + esc(c.back) : 'Yes'}</b>${note(c)}</div>
           <div class="row"><button class="btn wide" data-act="next">${t('Continue')}</button></div>`
         : `<div class="pad">
             ${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button class="key" data-act="padtap" data-n="${n}">${n}</button>`).join('')}
-            <button class="key dim" data-act="padback" aria-label="Delete">⌫</button>
+            <button class="key dim" data-act="padback" aria-label="${esc(t('Delete'))}">⌫</button>
             <button class="key" data-act="padtap" data-n="0">0</button>
-            <button class="key ok" data-act="padok" aria-label="Check" ${s.entry ? '' : 'disabled'}>✓</button>
+            <button class="key ok" data-act="padok" aria-label="${esc(t('Check'))}" ${s.entry ? '' : 'disabled'}>✓</button>
           </div>`}`;
       speak(c.front);
     },
@@ -2916,7 +2913,7 @@ const GAMES = {
           <div class="card static"><div class="face">${pic(c)}${fmt(c.front)}
             <p class="claim ${answered ? (s.claim.truth ? 'yes' : 'no') : ''}">${fmt(s.claim.text)}</p>
           </div></div>
-          <button class="speak" data-act="speak" aria-label="Read aloud">🔊</button>
+          <button class="speak" data-act="speak" aria-label="${esc(t('Read aloud'))}">🔊</button>
         </div>
         ${answered ? `<div class="verdict ${right ? 'exact' : 'wrong'}">
             <b>${right ? 'Right' : 'No'} — the answer is ${fmt(c.back)}</b>${note(c)}</div>
@@ -2942,7 +2939,7 @@ const GAMES = {
         ${progress()}
         <div class="asking">
           <b>${fmt(c.back)}</b>
-          <button class="speak" data-act="sayback" aria-label="Say it again">🔊</button>
+          <button class="speak" data-act="sayback" aria-label="${esc(t('Say it again'))}">🔊</button>
         </div>
         <div class="pics">${s.tiles.map((t, i) => {
           const cls = s.picked == null ? '' : t.back === c.back ? 'right' : (i === s.picked ? 'wrong' : 'faded');
@@ -2969,7 +2966,7 @@ const GAMES = {
         ${progress()}
         <div class="pit small">
           <div class="card static"><div class="face">${pic(c)}${fmt(c.front)}</div></div>
-          <button class="speak" data-act="speak" aria-label="Read aloud">🔊</button>
+          <button class="speak" data-act="speak" aria-label="${esc(t('Read aloud'))}">🔊</button>
         </div>
         <div class="slate">
           <canvas id="slate"></canvas>
@@ -3007,7 +3004,7 @@ const GAMES = {
               data-act="unslot" data-i="${i}" ${t === null ? 'disabled' : ''}>${t === null ? '' : esc(s.tiles[t])}</button>`).join('')}</span>
             ${s.verdict === 'wrong' ? `<small class="hint">${t('It was {answer}', { answer: esc(c.back) })}</small>` : ''}${from(c)}
           </div></div>
-          <button class="speak" data-act="speak" aria-label="Read aloud">🔊</button>
+          <button class="speak" data-act="speak" aria-label="${esc(t('Read aloud'))}">🔊</button>
         </div>
         <div class="letters">${s.tiles.map((ch, i) => `<button class="letter"
           data-act="slot" data-i="${i}" ${s.slots.includes(i) ? 'disabled' : ''}>${esc(ch)}</button>`).join('')}</div>
@@ -3037,7 +3034,7 @@ const GAMES = {
         ${progress()}
         <div class="pit small">
           <div class="card static"><div class="face">${pic(c)}${fmt(c.front)}${from(c)}</div></div>
-          <button class="speak" data-act="speak" aria-label="Read aloud">🔊</button>
+          <button class="speak" data-act="speak" aria-label="${esc(t('Read aloud'))}">🔊</button>
         </div>
         <ol class="steps placed">${items.map((_, n) => n < placed.length
           ? `<li><button class="step ${v ? (deal[placed[n]] === items[n] ? 'right' : 'wrong') : ''}"
@@ -3398,7 +3395,7 @@ const ACT = {
       const text = await navigator.clipboard.readText();
       document.getElementById('paste').value = text;
       ACT.paste();
-    } catch { showErr(new Error('Could not read the clipboard — paste into the box instead.')); }
+    } catch { showErr(new Error(t('Could not read the clipboard — paste into the box instead.'))); }
   },
   commit: async () => {
     try {
@@ -3406,7 +3403,7 @@ const ACT = {
       const added = view.pending
         .map(m => ({ ...m, cards: m.cards.filter((_, i) => !drop.has(m.id + ':' + i)) }))
         .filter(m => m.cards.length);
-      if (!added.length) return showErr(new Error('Nothing left to add — tick at least one card.'));
+      if (!added.length) return showErr(new Error(t('Nothing left to add — tick at least one card.')));
       // What each id held before, so the whole import can be taken back — including the case
       // where it replaced an existing module rather than adding a new one.
       const before = added.map(m => ({ id: m.id,
@@ -3465,7 +3462,7 @@ const ACT = {
       </div>
       <div class="row">
         <button class="btn" data-act="certprint">${t('Print it')}</button>
-        <button class="btn ghost" data-act="open" data-id="${esc(m.id)}">‹ back</button>
+        <button class="btn ghost" data-act="open" data-id="${esc(m.id)}">‹ ${t('back')}</button>
       </div>`;
   },
   certprint: () => window.print(),
@@ -3488,7 +3485,7 @@ const ACT = {
     if (!n) return;
     const cards = examSet(mods, P().srs, +n);
     if (cards.length < 2) return toast(t('Not enough cards for an exam yet.'));
-    launch({ id: 'exam', title: where === '*' ? 'Mock exam' : `Mock exam — ${where}` , cards },
+    launch({ id: 'exam', title: where === '*' ? t('Mock exam') : t('Mock exam — {subject}', { subject: where }), cards },
       'recall', cards, cards, true, ACT.mockexam);
   },
   // Straight from the exam report into the cards that failed it — this time for real, with
@@ -3574,7 +3571,7 @@ const ACT = {
     const back = document.getElementById('qback').value.trim();
     const note = document.getElementById('qnote').value.trim();
     const image = view.pic || '';
-    if (!front || !back) return showErr(new Error('A card needs both a question and an answer.'));
+    if (!front || !back) return showErr(new Error(t('A card needs both a question and an answer.')));
     try {
       // Nowhere sensible to put it yet: make somewhere, with this card as its first.
       if (id === '+') {
@@ -3593,7 +3590,7 @@ const ACT = {
       const m = modules.find(x => x.id === id);
       if (!m) return;
       if (m.cards.some(c => ident(c) === ident({ front, image }))) {
-        return showErr(new Error('That question is already in ' + m.title + '.'));
+        return showErr(new Error(t('That question is already in {module}.', { module: m.title })));
       }
       const mine = editable(id);
       mine.cards.push({ front, back, ...(note ? { note } : {}), ...(image ? { image } : {}) });
@@ -3642,7 +3639,7 @@ const ACT = {
       view = { name: 'import', src: u,
         pending: parseImport(text, u.split('/').pop().replace(/\.[^.]+$/, '')).map(m => ({ ...m, src: u })) };
       render();
-    } catch (e) { showErr(new Error(e.message.includes('Failed to fetch') ? 'Could not fetch that URL (the site may block cross-origin reads).' : e.message)); }
+    } catch (e) { showErr(new Error(e.message.includes('Failed to fetch') ? t('Could not fetch that URL (the site may block cross-origin reads).') : e.message)); }
   },
   // The loop closes here: the module's own questions go back to Claude as a prompt, and the
   // reply comes home through the importer, which offers to append rather than replace.
@@ -3670,7 +3667,7 @@ const ACT = {
       const found = parseImport(await fetchText(m.src), m.title);
       // A source can hold several modules; take the one this module came from.
       const incoming = found.find(x => x.id === id) || found[0];
-      if (!incoming) throw new Error('Nothing readable came back.');
+      if (!incoming) throw new Error(t('Nothing readable came back.'));
       const fresh = newCards(m.cards, incoming.cards);
       if (!fresh.length) return say(t.n('Already up to date — {n} card.', 'Already up to date — {n} cards.', m.cards.length));
       if (!await dialog({ ok: 'Add', title: `${host(m.src)} has ${fresh.length} card${fresh.length === 1 ? '' : 's'} `
@@ -3723,8 +3720,7 @@ ${toMarkdown(visible())}`;
     catch (e) { showErr(e); }
   },
   wipe: async () => {
-    if (!await askYes('Erase every profile, module and setting on this device? This also disconnects Google Drive here; '
-      + 'the copy in Drive is not touched. Export a backup first if you want one.', 'Erase')) return;
+    if (!await askYes(t('Erase every profile, module and setting on this device? This also disconnects Google Drive here; the copy in Drive is not touched. Export a backup first if you want one.'), t('Erase'))) return;
     try { if (token && token !== 'mock') google.accounts.oauth2.revoke(token, () => {}); } catch { /* offline */ }
     token = null; account = null; tokenExp = 0; tokenClient = null;
     // Only the Pit's own keys: every app by this maker shares the origin, so never clear().
@@ -3795,7 +3791,7 @@ ${toMarkdown(visible())}`;
         .map(p => ({ title: String(p.title || '').replace(/^File:/, ''), thumb: p.imageinfo?.[0]?.thumburl, page: p.imageinfo?.[0]?.descriptionurl }))
         .filter(f => /^https:\/\//.test(f.thumb || '')).slice(0, 6);
       render();
-    } catch (e) { showErr(new Error('Could not reach Wikimedia Commons — are you online?')); }
+    } catch (e) { showErr(new Error(t('Could not reach Wikimedia Commons — are you online?'))); }
   },
   usepic: async el => {
     const f = view.found?.[+el.dataset.i];
@@ -3808,7 +3804,7 @@ ${toMarkdown(visible())}`;
       view.found = null;
       say(t('Picture added ({kb} KB).', { kb: Math.round(data.length / 1024) }));
       touch(target);
-    } catch (e) { showErr(new Error('That picture could not be fetched.')); }
+    } catch (e) { showErr(new Error(t('That picture could not be fetched.'))); }
   },
   rec: () => {
     if (recorder) return recorder.stop();      // the change lands in the callback below
@@ -3907,7 +3903,7 @@ ${toMarkdown(visible())}`;
 
   savecard: () => {
     const get = f => app.querySelector(`[data-card="${f}"]`).value.trim();
-    if (!get('front') || !get('back')) return showErr(new Error('A card needs both a front and a back.'));
+    if (!get('front') || !get('back')) return showErr(new Error(t('A card needs both a front and a back.')));
     const m = editable(view.id);
     view.editing = null;      // the fields already wrote through; this just closes the row
     touch(m);
@@ -3919,7 +3915,7 @@ ${toMarkdown(visible())}`;
     const from = editable(fromId);
     const card = from.cards[i];
     if (!card) return;
-    if (from.cards.length < 2) return showErr(new Error('A module needs at least one card.'));
+    if (from.cards.length < 2) return showErr(new Error(t('A module needs at least one card.')));
     // Your own modules first — that is where a stray card is going — then the shelf, all of it.
     const customIds = new Set((state.custom || []).map(c => c.id));
     const others = visible().filter(x => x.id !== fromId)
@@ -3951,7 +3947,7 @@ ${toMarkdown(visible())}`;
   },
   delcard: async el => {
     const m = editable(view.id), i = +el.dataset.i;
-    if (m.cards.length < 2) return showErr(new Error('A module needs at least one card.'));
+    if (m.cards.length < 2) return showErr(new Error(t('A module needs at least one card.')));
     if (!await askYes(t('Delete “{card}”?', { card: m.cards[i].front }))) return;
     const [gone] = m.cards.splice(i, 1);
     view.editing = null;
@@ -4025,7 +4021,7 @@ ${toMarkdown(visible())}`;
     // iOS has no install prompt, so say where the button actually is.
     const ios = /iPad|iPhone|iPod/.test(navigator.userAgent)
       || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    toast(ios ? 'Tap Share, then “Add to Home Screen”.' : 'Use your browser menu: Install app / Add to Home Screen.');
+    toast(ios ? t('Tap Share, then “Add to Home Screen”.') : t('Use your browser menu: Install app / Add to Home Screen.'));
   },
   exam: () => { view.exam = !view.exam; render(); },
   exportmodule: el => {

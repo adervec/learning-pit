@@ -35,14 +35,14 @@ Two checks, both cheap to run:
 
 ## What's in the box
 
-Twenty-six modules ship with it, chosen to exercise every game — including **Using the Pit** (the
+Twenty-eight modules ship with it, chosen to exercise every game — including **Using the Pit** (the
 app taught the way the app teaches everything else) and **Premiers Mots** (twenty first words
 of French, read aloud by an actual French voice via the module's `lang` tag) with **Petites
-Phrases** (sixteen small sentences you can actually say) beside it, and **Frases Cortas** doing the same for Spanish. For the youngest: **Letters & Numbers** (every letter and digit, traced on the slate), **Colours** (a
+Phrases** (sixteen small sentences you can actually say) beside it, and **Frases Cortas** doing the same for Spanish, and **Erste Wörter** for German. For the youngest: **Letters & Numbers** (every letter and digit, traced on the slate), **Colours** (a
 patch of colour, tap the one that is named), **Shapes**, **Picture Words** (sixteen drawings and
 a word to spell), **Counting** (how many shapes, tapped in on the number pad), **Division** (the times tables asked backwards), **Telling the Time** (a drawn clock face, read aloud — hours, halves and quarters), **Days & Months** (what comes next), **Animal Sounds** (which animal says moo?), **Opposites** and
 **First Words**. Then
-**Times Tables**, **Commonly Confused Words** (word pairs that blur together, asked in the sentences that settle them — bait for the mix-up tracker), **Flags**, **World Capitals**, **The Solar System**, **In Order** (planets, cycles, layers and steps — sequences to tap into place in *Order it*), **Chemical Elements** (the first twenty by symbol, then the ones that only make sense in Latin), **Logical Fallacies**,
+**Times Tables**, **Commonly Confused Words** (word pairs that blur together, asked in the sentences that settle them — bait for the mix-up tracker), **Flags**, **World Capitals**, **The Solar System**, **In Order** (planets, cycles, layers and steps — sequences to tap into place in *Order it*), **The Human Body** (what is inside you and what it does), **Chemical Elements** (the first twenty by symbol, then the ones that only make sense in Latin), **Logical Fallacies**,
 **Cognitive Biases**, **How Language Models Work**, and **Learning Science** — the rules this
 app is built on, with the *why* on the back of each card.
 

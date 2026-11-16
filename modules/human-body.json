@@ -1,0 +1,40 @@
+{
+  "id": "human-body",
+  "title": "The Human Body",
+  "description": "What is inside you, what it does, and a few numbers worth knowing.",
+  "icon": "🫀",
+  "tags": [
+    "science",
+    "kids"
+  ],
+  "cards": [
+    { "front": "Which organ pumps blood around your body?", "back": "The heart", "alt": ["heart"] },
+    { "front": "Which organs do you breathe with?", "back": "The lungs", "alt": ["lungs"] },
+    { "front": "Which organ does your thinking?", "back": "The brain", "alt": ["brain"] },
+    { "front": "What is the biggest organ of your body?", "back": "The skin", "alt": ["skin"], "note": "It is an organ too — it keeps water in and germs out." },
+    { "front": "What holds your body up and gives it its shape?", "back": "The skeleton", "alt": ["skeleton", "bones", "your bones"] },
+    { "front": "What pulls on your bones to make you move?", "back": "Muscles", "alt": ["your muscles"] },
+    { "front": "What do we call the place where two bones meet?", "back": "A joint", "alt": ["joint"], "hint": "Your knee and your elbow are two" },
+    { "front": "Which bone protects your brain?", "back": "The skull", "alt": ["skull"] },
+    { "front": "Which bones protect your heart and lungs?", "back": "The ribs", "alt": ["ribs", "rib cage", "the rib cage"] },
+    { "front": "What is the longest bone in your body?", "back": "The thigh bone (femur)", "alt": ["femur", "thigh bone", "the femur"] },
+    { "front": "How many bones does a grown-up have?", "back": "206", "note": "A baby is born with about 300; many join together as it grows." },
+    { "front": "What carries blood away from the heart?", "back": "Arteries", "note": "Veins bring it back." },
+    { "front": "What carries blood back to the heart?", "back": "Veins", "note": "Arteries take it away." },
+    { "front": "What does blood carry to every part of the body?", "back": "Oxygen and food", "alt": ["oxygen", "oxygen and nutrients"] },
+    { "front": "Which part of the blood fights germs?", "back": "White blood cells", "alt": ["white cells"] },
+    { "front": "Which part of the blood carries oxygen?", "back": "Red blood cells", "alt": ["red cells"] },
+    { "front": "Where does food go right after you swallow it?", "back": "The stomach", "alt": ["stomach"], "note": "Down a tube called the oesophagus first." },
+    { "front": "Which organ cleans your blood and makes urine?", "back": "The kidneys", "alt": ["kidneys"] },
+    { "front": "Which big organ cleans poisons out of your blood and stores energy?", "back": "The liver", "alt": ["liver"] },
+    { "front": "What carries messages between your brain and your body?", "back": "Nerves", "alt": ["the nerves"] },
+    { "front": "What are the five senses?", "back": "Sight, hearing, smell, taste and touch" },
+    { "front": "Which part of the eye lets light in?", "back": "The pupil", "alt": ["pupil"], "note": "The black dot in the middle; it gets bigger in the dark." },
+    { "front": "What is the hard white coat on the outside of a tooth?", "back": "Enamel", "note": "The hardest thing in your body." },
+    { "front": "How many teeth does a grown-up have?", "back": "32", "note": "Children have 20 milk teeth first." },
+    { "front": "What gas do we breathe in that our bodies need?", "back": "Oxygen" },
+    { "front": "What gas do we breathe out?", "back": "Carbon dioxide", "alt": ["CO2"] },
+    { "front": "About how much of your body is water?", "back": "More than half", "alt": ["about 60%", "60%", "over half"] },
+    { "front": "What does your body do while you sleep?", "back": "Rests, grows and repairs itself", "note": "And the brain files away what you learned that day — which is why sleep helps you remember." }
+  ]
+}
