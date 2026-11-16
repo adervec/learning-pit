@@ -2149,7 +2149,7 @@ async function usageLine() {
     .sort((a, b) => b.kb - a.kb)
     .slice(0, 5);
   if (!weighed.length) return;
-  box.innerHTML = `<p class="lede small-note">${t('The heaviest modules — pictures and recordings, usually. They are kept apart from your progress, so they cannot crowd it out:')}</p>
+  box.innerHTML = `<p class="lede small-note">${esc(t('The heaviest modules — pictures and recordings, usually. They are kept apart from your progress, so they cannot crowd it out:'))}</p>
     <div class="list">${weighed.map(x => `<div class="li">
       <button class="rowbtn" data-act="edit" data-id="${esc(x.m.id)}">
         <span>${esc(x.m.title)}</span><em>${x.kb} KB</em></button>
