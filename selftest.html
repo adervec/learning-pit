@@ -785,7 +785,9 @@ try {
   await click('[data-act="readall"]', 200);
   check(!!$('.li.reading.now'), 'the card being read is marked');
   check(!!$('[data-act="readstop"]'), 'and it can be stopped');
-  await wait(900);
+  // Where speech really works (a headless browser speaks) a card takes its time; where it errors
+  // at once the reader moves in well under a second. Either way it should get to card 2.
+  await until(() => /card [2-9]/.test($('.row.wrap small')?.textContent || ''), 12000);
   const reached = $('.row.wrap small')?.textContent || '';
   // The reader paces itself with the app's own timers, which a hidden tab clamps to a crawl.
   // That is the browser being honest, not the app being broken — only judge pace when visible.
@@ -1247,7 +1249,7 @@ try {
   const face = $('.card .face');
   check(face.classList.contains('long'), 'a pasted paragraph is treated as prose');
   const prose = parseFloat(frame.contentWindow.getComputedStyle(face).fontSize);
-  check(frame.contentWindow.getComputedStyle(face).textAlign === 'left', 'left aligned, not centred');
+  check(frame.contentWindow.getComputedStyle(face).textAlign === 'start', 'aligned to the reading edge, not centred');
   await click('[data-act="flip"]', 100);
   await click('[data-g="good"]', 200);
   await click('[data-act="home"]', 300);
